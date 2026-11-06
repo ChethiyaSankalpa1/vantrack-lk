@@ -1,0 +1,27 @@
+# Node.js
+node_modules/
+**/node_modules/
+.env
+**/.env
+.env.*
+!**/.env.example
+
+# Flutter & Dart
+.dart_tool/
+**/.dart_tool/
+build/
+**/build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db

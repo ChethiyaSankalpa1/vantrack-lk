@@ -1,0 +1,331 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../config/app_colors.dart';
+import '../../config/routes.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/parent_dashboard_provider.dart';
+import '../../widgets/child_selector_bar.dart';
+import '../../widgets/custom_button.dart';
+import '../../widgets/fee_status_card.dart';
+import '../../widgets/quick_actions_grid.dart';
+import '../../widgets/student_status_card.dart';
+import '../../widgets/transit_schedule_card.dart';
+import '../../widgets/vehicle_driver_card.dart';
+
+class ParentDashboardScreen extends StatefulWidget {
+  const ParentDashboardScreen({super.key});
+
+  @override
+  State<ParentDashboardScreen> createState() => _ParentDashboardScreenState();
+}
+
+class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ParentDashboardProvider>().loadDashboard();
+    });
+  }
+
+  void _showReportAbsenceDialog() {
+    final provider = context.read<ParentDashboardProvider>();
+    final student = provider.selectedStudent;
+    if (student == null) return;
+
+    final reasonController = TextEditingController(text: 'Medical sick leave');
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.notification_important_rounded,
+                color: AppColors.error),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Report Absence for ${student.name.split(' ').first}',
+                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Notifying the van driver ahead of time prevents unnecessary stops and keeps the route running on schedule.',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: reasonController,
+              decoration: const InputDecoration(
+                labelText: 'Reason for absence',
+                hintText: 'e.g., Fever, Family event, School holiday',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              minimumSize: const Size(110, 44),
+            ),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final success = await provider.reportStudentAbsence(
+                reasonController.text.trim(),
+              );
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      success
+                          ? 'Absence reported to driver for ${student.name}'
+                          : 'Failed to record absence notice',
+                    ),
+                    backgroundColor:
+                        success ? AppColors.success : AppColors.error,
+                  ),
+                );
+              }
+            },
+            child: const Text('Confirm Absence'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final authProvider = context.watch<AuthProvider>();
+    final parentProvider = context.watch<ParentDashboardProvider>();
+    final user = authProvider.user;
+
+    final student = parentProvider.selectedStudent;
+    final students = parentProvider.students;
+    final isLoading = parentProvider.isLoading;
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'VanTrack',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: AppColors.accent,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    'LK',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Text(
+              'Welcome, ${user?.name.split(' ').first ?? 'Parent'}',
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh',
+            icon: const Icon(Icons.refresh_rounded, color: AppColors.primary),
+            onPressed: () => parentProvider.loadDashboard(),
+          ),
+          IconButton(
+            tooltip: 'Student Profile & QR',
+            icon: const Icon(Icons.qr_code_rounded, color: AppColors.primary),
+            onPressed: () {
+              if (student != null) {
+                Navigator.pushNamed(
+                  context,
+                  AppRoutes.studentDetails,
+                  arguments: student,
+                );
+              }
+            },
+          ),
+          IconButton(
+            tooltip: 'Logout',
+            icon: const Icon(Icons.logout_rounded, color: AppColors.error),
+            onPressed: () async {
+              await authProvider.logout();
+              if (context.mounted) {
+                Navigator.pushReplacementNamed(context, AppRoutes.login);
+              }
+            },
+          ),
+          const SizedBox(width: 6),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: () => parentProvider.loadDashboard(),
+        child: isLoading && students.isEmpty
+            ? const Center(child: CircularProgressIndicator())
+            : students.isEmpty
+                ? _buildEmptyState()
+                : SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Child switcher tabs
+                        ChildSelectorBar(
+                          students: students,
+                          selectedIndex: parentProvider.selectedStudentIndex,
+                          onSelected: (idx) => parentProvider.selectStudent(idx),
+                          onAddChild: () => Navigator.pushNamed(
+                            context,
+                            '/students/add',
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+
+                        // Child transit status summary card
+                        if (student != null)
+                          StudentStatusCard(
+                            student: student,
+                            todayAttendance:
+                                parentProvider.selectedStudentAttendance,
+                            activeTrip: parentProvider.dashboardData?.activeTrip,
+                            onLiveTrackPressed: () {
+                              Navigator.pushNamed(context, AppRoutes.liveTracking);
+                            },
+                          ),
+                        const SizedBox(height: 16),
+
+                        // Vehicle and driver information
+                        if (student != null)
+                          VehicleDriverCard(
+                            vehicle: student.assignedVehicle,
+                            onCallDriver: () {
+                              final phone =
+                                  student.assignedVehicle?.driver?.phone ??
+                                      '0783456789';
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Calling Driver: $phone'),
+                                  backgroundColor: AppColors.primary,
+                                ),
+                              );
+                            },
+                          ),
+                        const SizedBox(height: 16),
+
+                        // Daily transit timeline schedule
+                        if (student != null)
+                          TransitScheduleCard(student: student),
+                        const SizedBox(height: 16),
+
+                        // Monthly transport fee card
+                        FeeStatusCard(
+                          invoice: parentProvider.dashboardData?.latestInvoice,
+                          onViewInvoices: () {
+                            Navigator.pushNamed(context, AppRoutes.invoices);
+                          },
+                        ),
+                        const SizedBox(height: 20),
+
+                        // Quick actions grid
+                        QuickActionsGrid(
+                          onLiveTrackingTap: () {
+                            Navigator.pushNamed(context, AppRoutes.liveTracking);
+                          },
+                          onAttendanceTap: () {
+                            Navigator.pushNamed(context, AppRoutes.attendance);
+                          },
+                          onInvoicesTap: () {
+                            Navigator.pushNamed(context, AppRoutes.invoices);
+                          },
+                          onReportAbsenceTap: _showReportAbsenceDialog,
+                        ),
+                        const SizedBox(height: 30),
+                      ],
+                    ),
+                  ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: AppColors.accent.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.school_rounded,
+                size: 64,
+                color: AppColors.accent,
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'No Children Registered Yet',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Link your child\'s profile and school to receive live GPS van tracking, morning pickup alerts, and attendance notifications.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.4),
+            ),
+            const SizedBox(height: 24),
+            CustomButton(
+              text: 'Register Child Profile',
+              icon: Icons.add_rounded,
+              onPressed: () {
+                Navigator.pushNamed(context, '/students/add');
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
