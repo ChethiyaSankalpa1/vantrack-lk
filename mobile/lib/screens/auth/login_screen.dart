@@ -97,6 +97,11 @@ class _LoginScreenState extends State<LoginScreen> {
               runSpacing: 6,
               children: [
                 ActionChip(
+                  avatar: const Icon(Icons.cloud_done_rounded, size: 14, color: AppColors.accent),
+                  label: const Text('Render Cloud (Live)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  onPressed: () => serverController.text = 'https://vantrack-lk.onrender.com/api',
+                ),
+                ActionChip(
                   label: const Text('Wi-Fi PC (192.168.1.4)', style: TextStyle(fontSize: 11)),
                   onPressed: () => serverController.text = 'http://192.168.1.4:5000/api',
                 ),

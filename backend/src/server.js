@@ -69,7 +69,7 @@ app.use('/api/routes', require('./routes/routeRoutes'));
 app.use('/api/notifications', require('./routes/notificationRoutes'));
 
 // Health check endpoint
-app.get('/api/health', (req, res) => {
+app.get(['/api', '/api/health'], (req, res) => {
   res.status(200).json({
     status: 'online',
     service: 'VanTrack LK Smart School Transportation API',
