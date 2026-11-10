@@ -1,17 +1,23 @@
 import 'package:flutter/material.dart';
 import '../models/student_model.dart';
+import '../models/trip_model.dart';
 import '../models/user_role.dart';
+import '../screens/attendance/attendance_history_screen.dart';
+import '../screens/attendance/qr_scanner_screen.dart';
 import '../screens/auth/forgot_password_screen.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/register_screen.dart';
 import '../screens/common/role_router_screen.dart';
 import '../screens/driver/assistant_dashboard_screen.dart';
 import '../screens/driver/driver_dashboard_screen.dart';
+import '../screens/driver/trip_history_screen.dart';
 import '../screens/onboarding/onboarding_screen.dart';
 import '../screens/parent/add_child_screen.dart';
 import '../screens/parent/parent_dashboard_screen.dart';
 import '../screens/parent/student_profile_screen.dart';
 import '../screens/splash/splash_screen.dart';
+import '../screens/tracking/live_tracking_screen.dart';
+import '../screens/trip/trip_details_screen.dart';
 
 class AppRoutes {
   static const String splash = '/';
@@ -32,7 +38,9 @@ class AppRoutes {
   static const String addChild = '/students/add';
   static const String routeDetails = '/routes/details';
   static const String attendance = '/attendance';
+  static const String qrScanner = '/attendance/qr-scanner';
   static const String tripDetails = '/trips/details';
+  static const String tripHistory = '/trips/history';
   static const String notifications = '/notifications';
   static const String invoices = '/invoices';
   static const String paymentHistory = '/payments/history';
@@ -68,31 +76,33 @@ class AppRoutes {
       case addChild:
         return MaterialPageRoute(builder: (_) => const AddChildScreen());
       case liveTracking:
-        return MaterialPageRoute(
-          builder: (_) => Scaffold(
-            appBar: AppBar(title: const Text('Live GPS Tracking')),
-            body: const Center(
-              child: Text(
-                'Live GPS Tracking Map\n(Coming in Stage 6)',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-        );
+        return MaterialPageRoute(builder: (_) => const LiveTrackingScreen());
       case attendance:
+        final args = settings.arguments as Map<String, dynamic>?;
         return MaterialPageRoute(
-          builder: (_) => Scaffold(
-            appBar: AppBar(title: const Text('Student Attendance History')),
-            body: const Center(
-              child: Text(
-                'Student Attendance History & QR Logs\n(Coming in Stage 5)',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-            ),
+          builder: (_) => AttendanceHistoryScreen(
+            studentId: args?['studentId']?.toString(),
+            studentName: args?['studentName']?.toString(),
           ),
         );
+      case qrScanner:
+        final args = settings.arguments as Map<String, dynamic>?;
+        return MaterialPageRoute(
+          builder: (_) => QrScannerScreen(
+            tripId: args?['tripId']?.toString() ?? '',
+            initialMode: args?['initialMode']?.toString() ?? 'boarded',
+          ),
+        );
+      case tripDetails:
+        final args = settings.arguments as Map<String, dynamic>;
+        return MaterialPageRoute(
+          builder: (_) => TripDetailsScreen(
+            trip: args['trip'] as TripModel,
+            isDriverView: args['isDriverView'] as bool? ?? false,
+          ),
+        );
+      case tripHistory:
+        return MaterialPageRoute(builder: (_) => const TripHistoryScreen());
       case invoices:
         return MaterialPageRoute(
           builder: (_) => Scaffold(

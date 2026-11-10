@@ -191,6 +191,24 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
                 ),
               ],
             ),
+      floatingActionButton: activeTrip != null
+          ? FloatingActionButton.extended(
+              backgroundColor: AppColors.info,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.qr_code_scanner_rounded),
+              label: const Text('Scan QR Pass', style: TextStyle(fontWeight: FontWeight.w700)),
+              onPressed: () {
+                Navigator.pushNamed(
+                  context,
+                  AppRoutes.qrScanner,
+                  arguments: {
+                    'tripId': activeTrip.id,
+                    'initialMode': 'boarded',
+                  },
+                );
+              },
+            )
+          : null,
     );
   }
 

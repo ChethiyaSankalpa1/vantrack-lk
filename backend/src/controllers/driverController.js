@@ -367,3 +367,35 @@ exports.getTripHistory = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+/**
+ * @desc    Update current stop index on active trip
+ * @route   PUT /api/driver/trips/:id/stop
+ * @access  Private (Driver / Assistant)
+ */
+exports.updateCurrentStop = async (req, res) => {
+  try {
+    const { stopIndex } = req.body;
+    const trip = await Trip.findById(req.params.id);
+    if (!trip) return res.status(404).json({ success: false, message: 'Trip not found' });
+
+    trip.currentStopIndex = stopIndex;
+    await trip.save();
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`trip_${trip._id}`).emit('trip:stop-changed', {
+        tripId: trip._id,
+        currentStopIndex: stopIndex,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Stop updated to index ${stopIndex}`,
+      data: trip,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

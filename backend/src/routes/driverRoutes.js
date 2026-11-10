@@ -9,6 +9,7 @@ const {
   getAssignedStudents,
   reportIncident,
   getTripHistory,
+  updateCurrentStop,
 } = require('../controllers/driverController');
 
 router.get('/dashboard', protect, authorize('driver', 'assistant'), getDriverDashboard);
@@ -16,6 +17,7 @@ router.get('/students', protect, authorize('driver', 'assistant'), getAssignedSt
 router.get('/trips', protect, authorize('driver'), getTripHistory);
 router.post('/trips/:id/start', protect, authorize('driver'), startTrip);
 router.post('/trips/:id/end', protect, authorize('driver'), endTrip);
+router.put('/trips/:id/stop', protect, authorize('driver', 'assistant'), updateCurrentStop);
 router.post('/location', protect, authorize('driver', 'assistant'), updateLocation);
 router.post('/incidents', protect, authorize('driver', 'assistant'), reportIncident);
 

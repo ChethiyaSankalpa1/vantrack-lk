@@ -52,18 +52,51 @@ class _LoginScreenState extends State<LoginScreen> {
       Navigator.pushReplacementNamed(context, AppRoutes.roleRouter);
     } else {
       final error = authProvider.errorMessage ?? 'Login failed. Please check your credentials.';
+      final currentUrl = LocalStorage.getBaseUrl();
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Row(
+          duration: const Duration(seconds: 6),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.error_outline, color: Colors.white, size: 20),
-              const SizedBox(width: 10),
-              Expanded(child: Text(error)),
+              Row(
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.white, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(error)),
+                ],
+              ),
+              if (error.contains('Cannot connect')) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Server URL: $currentUrl',
+                  style: const TextStyle(fontSize: 11, color: Colors.white70),
+                ),
+              ],
             ],
           ),
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          action: error.contains('Cannot connect')
+              ? SnackBarAction(
+                  label: 'Use Live Cloud',
+                  textColor: Colors.amber,
+                  onPressed: () async {
+                    await LocalStorage.setCustomBaseUrl('https://vantrack-lk.onrender.com/api');
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Switched server to Live Render Cloud! Please tap Sign In again.'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    }
+                  },
+                )
+              : null,
         ),
       );
     }

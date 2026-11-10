@@ -8,6 +8,7 @@ import 'core/storage/local_storage.dart';
 import 'providers/auth_provider.dart';
 import 'providers/driver_provider.dart';
 import 'providers/parent_dashboard_provider.dart';
+import 'providers/tracking_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,6 +37,7 @@ class VanTrackApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ParentDashboardProvider()),
         ChangeNotifierProvider(create: (_) => DriverProvider()),
+        ChangeNotifierProvider(create: (_) => TrackingProvider()),
       ],
       child: MaterialApp(
         title: AppConstants.appName,

@@ -111,6 +111,11 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
               ),
             ),
           IconButton(
+            tooltip: 'Past Trips History',
+            icon: const Icon(Icons.history_rounded, color: Colors.white),
+            onPressed: () => Navigator.pushNamed(context, AppRoutes.tripHistory),
+          ),
+          IconButton(
             tooltip: 'Refresh',
             icon: const Icon(Icons.refresh_rounded, color: Colors.white),
             onPressed: () => driver.loadDashboard(),
@@ -163,6 +168,24 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                 ),
               ],
             ),
+      floatingActionButton: driver.activeTrip != null
+          ? FloatingActionButton.extended(
+              backgroundColor: AppColors.accent,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.qr_code_scanner_rounded),
+              label: const Text('Scan QR Pass', style: TextStyle(fontWeight: FontWeight.w700)),
+              onPressed: () {
+                Navigator.pushNamed(
+                  context,
+                  AppRoutes.qrScanner,
+                  arguments: {
+                    'tripId': driver.activeTrip!.id,
+                    'initialMode': 'boarded',
+                  },
+                );
+              },
+            )
+          : null,
     );
   }
 

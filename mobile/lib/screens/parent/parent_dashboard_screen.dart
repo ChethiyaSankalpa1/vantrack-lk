@@ -266,7 +266,14 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                             Navigator.pushNamed(context, AppRoutes.liveTracking);
                           },
                           onAttendanceTap: () {
-                            Navigator.pushNamed(context, AppRoutes.attendance);
+                            Navigator.pushNamed(
+                              context,
+                              AppRoutes.attendance,
+                              arguments: {
+                                'studentId': student?.id,
+                                'studentName': student?.name,
+                              },
+                            );
                           },
                           onInvoicesTap: () {
                             Navigator.pushNamed(context, AppRoutes.invoices);
