@@ -70,10 +70,16 @@ exports.recordAttendance = async (req, res) => {
       absent: `📋 ${student.name} has been recorded as absent today`,
     };
 
+    const statusTitles = {
+      boarded: 'Student Boarded',
+      dropped_off: 'Student Arrived Home',
+      absent: 'Student Marked Absent',
+    };
+
     if (student.parentId) {
       await Notification.create({
         userId: student.parentId._id,
-        title: statusMessages[status].split(' ').slice(1, 4).join(' '),
+        title: statusTitles[status] || 'Student Status Update',
         message: `${statusMessages[status]}. Time: ${new Date().toLocaleTimeString('en-LK', { hour: '2-digit', minute: '2-digit' })}`,
         type: status === 'boarded' ? 'student_boarded' : status === 'dropped_off' ? 'student_dropped' : 'general',
         data: {
