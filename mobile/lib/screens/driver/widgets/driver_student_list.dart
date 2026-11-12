@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../config/app_colors.dart';
 import '../../../models/student_model.dart';
 import '../../../models/trip_model.dart';
@@ -496,22 +497,46 @@ class _StudentCardState extends State<_StudentCard> {
               contentPadding: EdgeInsets.zero,
               dense: true,
               leading: const Icon(Icons.phone_rounded, color: AppColors.success, size: 20),
-              title: const Text('Primary Phone', style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+              title: const Text('Primary Phone (Tap to Call)', style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
               subtitle: Text(
                 student.parentPhone ?? '0771234567',
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
               ),
+              trailing: const Icon(Icons.phone_forwarded_rounded, color: AppColors.success, size: 18),
+              onTap: () async {
+                final phone = student.parentPhone ?? '0771234567';
+                final Uri uri = Uri(scheme: 'tel', path: phone.replaceAll(RegExp(r'[^\d+]'), ''));
+                try {
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri);
+                  } else {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                } catch (_) {}
+              },
             ),
             if (student.parentEmergencyContact != null)
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 dense: true,
                 leading: const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 20),
-                title: const Text('Emergency Hotline', style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                title: const Text('Emergency Hotline (Tap to Call)', style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
                 subtitle: Text(
                   student.parentEmergencyContact!,
                   style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.error),
                 ),
+                trailing: const Icon(Icons.phone_forwarded_rounded, color: AppColors.error, size: 18),
+                onTap: () async {
+                  final phone = student.parentEmergencyContact!;
+                  final Uri uri = Uri(scheme: 'tel', path: phone.replaceAll(RegExp(r'[^\d+]'), ''));
+                  try {
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri);
+                    } else {
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    }
+                  } catch (_) {}
+                },
               ),
           ],
         ),

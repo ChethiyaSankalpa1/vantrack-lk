@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../config/app_colors.dart';
 import '../../config/routes.dart';
+import '../../models/vehicle_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/notification_provider.dart';
 import '../../providers/parent_dashboard_provider.dart';
@@ -289,17 +291,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                         if (student != null)
                           VehicleDriverCard(
                             vehicle: student.assignedVehicle,
-                            onCallDriver: () {
-                              final phone =
-                                  student.assignedVehicle?.driver?.phone ??
-                                      '0783456789';
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Calling Driver: $phone'),
-                                  backgroundColor: AppColors.primary,
-                                ),
-                              );
-                            },
+                            onCallDriver: () => _showCallCrewModal(student.assignedVehicle),
                           ),
                         const SizedBox(height: 16),
 
@@ -387,6 +379,115 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 Navigator.pushNamed(context, '/students/add');
               },
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _makePhoneCall(String phoneNumber) async {
+    final cleanPhone = phoneNumber.replaceAll(RegExp(r'[^\d+]'), '');
+    final Uri launchUri = Uri(scheme: 'tel', path: cleanPhone);
+    try {
+      if (await canLaunchUrl(launchUri)) {
+        await launchUrl(launchUri);
+      } else {
+        await launchUrl(launchUri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Opening phone dialer for $phoneNumber...'),
+            backgroundColor: AppColors.primary,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showCallCrewModal(VehicleModel? vehicle) {
+    final driver = vehicle?.driver;
+    final assistant = vehicle?.assistant;
+
+    final driverPhone = driver?.phone ?? '0783456789';
+    final driverName = driver?.name ?? 'Sunil Shantha (Driver)';
+    final assistantPhone = assistant?.phone ?? '0754567890';
+    final assistantName = assistant?.name ?? 'Kamal Bandara (Assistant)';
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.cardBorder,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Call School Van Crew',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Vehicle: ${vehicle?.registrationNumber ?? "WP NB-7842"} (${vehicle?.makeModel ?? "Toyota HiAce"})',
+              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+
+            // Call Driver
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: const BoxDecoration(
+                  color: AppColors.accent,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.phone_rounded, color: Colors.white, size: 20),
+              ),
+              title: Text(driverName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              subtitle: Text('Van Driver • $driverPhone', style: const TextStyle(fontSize: 12, color: AppColors.accentDark, fontWeight: FontWeight.w600)),
+              trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.textMuted),
+              onTap: () {
+                Navigator.pop(ctx);
+                _makePhoneCall(driverPhone);
+              },
+            ),
+
+            if (assistant != null || assistantPhone.isNotEmpty) ...[
+              const Divider(height: 16),
+              // Call Assistant
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.phone_outlined, color: AppColors.primary, size: 20),
+                ),
+                title: Text(assistantName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                subtitle: Text('Van Assistant / Attendant • $assistantPhone', style: const TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600)),
+                trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.textMuted),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _makePhoneCall(assistantPhone);
+                },
+              ),
+            ],
           ],
         ),
       ),

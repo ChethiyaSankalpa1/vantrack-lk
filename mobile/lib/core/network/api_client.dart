@@ -90,4 +90,23 @@ class ApiClient {
   }) async {
     return await _dio.delete(path, data: data, queryParameters: queryParameters, options: options);
   }
+
+  // Helper Multipart Upload
+  Future<Response> postMultipart(
+    String path, {
+    required String filePath,
+    String fileField = 'file',
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    final fileName = filePath.split('/').last;
+    final formData = FormData.fromMap({
+      fileField: await MultipartFile.fromFile(filePath, filename: fileName),
+    });
+    return await _dio.post(
+      path,
+      data: formData,
+      queryParameters: queryParameters,
+      options: Options(headers: {'Content-Type': 'multipart/form-data'}),
+    );
+  }
 }

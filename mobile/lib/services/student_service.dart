@@ -72,4 +72,19 @@ class StudentService {
       throw ApiException.fromDioError(e);
     }
   }
+
+  /// Upload student photo file to backend Cloudinary
+  Future<String> uploadStudentPhoto(String filePath) async {
+    try {
+      final response = await _api.postMultipart(
+        '/upload',
+        filePath: filePath,
+        queryParameters: {'type': 'student'},
+      );
+      final data = response.data['data'] as Map<String, dynamic>;
+      return data['url'] as String;
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
 }
