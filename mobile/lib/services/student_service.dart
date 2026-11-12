@@ -61,13 +61,35 @@ class StudentService {
   }
 
   /// Parent reports child absence
-  Future<String> reportAbsence(String studentId, String reason) async {
+  Future<Map<String, dynamic>> reportAbsence(
+    String studentId,
+    String reason, {
+    required String absenceDate,
+    String absenceType = 'full_day',
+    String? additionalNote,
+  }) async {
     try {
       final response = await _api.post(
-        '/students/$studentId/absence',
-        data: {'reason': reason},
+        '/students/$studentId/absence-report',
+        data: {
+          'absenceDate': absenceDate,
+          'absenceType': absenceType,
+          'reason': reason,
+          if (additionalNote != null && additionalNote.isNotEmpty)
+            'additionalNote': additionalNote,
+        },
       );
-      return response.data['message'] ?? 'Absence reported successfully';
+      return response.data['data'] as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  /// Parent cancels pending absence report
+  Future<bool> cancelAbsenceReport(String absenceId) async {
+    try {
+      await _api.patch('/students/absences/$absenceId/cancel');
+      return true;
     } on DioException catch (e) {
       throw ApiException.fromDioError(e);
     }

@@ -322,6 +322,34 @@ class _StudentCardState extends State<_StudentCard> {
                       ),
                     ],
                   ),
+
+                  if (s.todayAbsence != null) ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.error.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.event_busy_rounded, size: 12, color: AppColors.error),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              'ABSENT: ${(s.todayAbsence!['absenceType'] ?? 'full_day').toString().toUpperCase().replaceAll('_', ' ')} (${s.todayAbsence!['reason'] ?? 'sick'})',
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.error,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 2),
                   Text(
                     '${s.schoolName} (${s.grade})',

@@ -16,6 +16,7 @@ import '../screens/notifications/notifications_screen.dart';
 import '../screens/onboarding/onboarding_screen.dart';
 import '../screens/parent/add_child_screen.dart';
 import '../screens/parent/parent_dashboard_screen.dart';
+import '../screens/parent/report_absence_screen.dart';
 import '../screens/parent/student_profile_screen.dart';
 import '../screens/profile/parent_profile_screen.dart';
 import '../screens/settings/settings_screen.dart';
@@ -40,6 +41,7 @@ class AppRoutes {
   static const String liveTracking = '/tracking/live';
   static const String studentDetails = '/students/details';
   static const String addChild = '/students/add';
+  static const String reportAbsence = '/students/absence';
   static const String routeDetails = '/routes/details';
   static const String attendance = '/attendance';
   static const String qrScanner = '/attendance/qr-scanner';
@@ -79,6 +81,9 @@ class AppRoutes {
         return MaterialPageRoute(builder: (_) => StudentProfileScreen(student: student));
       case addChild:
         return MaterialPageRoute(builder: (_) => const AddChildScreen());
+      case reportAbsence:
+        final student = routeSettings.arguments is StudentModel ? routeSettings.arguments as StudentModel : null;
+        return MaterialPageRoute(builder: (_) => ReportAbsenceScreen(initialStudent: student));
       case liveTracking:
         return MaterialPageRoute(builder: (_) => const LiveTrackingScreen());
       case attendance:

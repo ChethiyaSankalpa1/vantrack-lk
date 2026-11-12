@@ -111,12 +111,18 @@ class ParentDashboardProvider extends ChangeNotifier {
     });
   }
 
-  Future<bool> reportStudentAbsence(String reason) async {
+  Future<bool> reportStudentAbsence(String reason, {String? absenceDate, String? absenceType}) async {
     final student = selectedStudent;
     if (student == null) return false;
 
     try {
-      await _studentService.reportAbsence(student.id, reason);
+      final dateStr = absenceDate ?? DateTime.now().toIso8601String().split('T').first;
+      await _studentService.reportAbsence(
+        student.id,
+        reason,
+        absenceDate: dateStr,
+        absenceType: absenceType ?? 'full_day',
+      );
       await loadDashboard(); // refresh state
       return true;
     } catch (e) {

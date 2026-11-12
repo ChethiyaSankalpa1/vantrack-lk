@@ -62,6 +62,12 @@ router.get('/bank-deposits', bankDepositController.getAdminBankDeposits);
 router.post('/bank-deposits/:id/approve', bankDepositController.approveBankDeposit);
 router.post('/bank-deposits/:id/reject', bankDepositController.rejectBankDeposit);
 
+// 7d. Student Absence Management
+const absenceController = require('../controllers/absenceController');
+router.get('/absences', absenceController.getAdminAbsenceReports);
+router.patch('/absences/:absenceId/acknowledge', absenceController.acknowledgeAbsenceReport);
+router.patch('/absences/:absenceId/reject', absenceController.rejectAbsenceReport);
+
 // 8. Incidents
 router.get('/incidents', adminController.getIncidents);
 router.put('/incidents/:id/resolve', adminController.resolveIncident);

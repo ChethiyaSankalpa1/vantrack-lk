@@ -49,6 +49,7 @@ class StudentModel {
   final LocationSchedule dropoffLocation;
   final VehicleModel? assignedVehicle;
   final Map<String, dynamic>? assignedRoute;
+  final Map<String, dynamic>? todayAbsence;
 
   String get pickupTime => pickupLocation.scheduledTime;
   String get dropoffTime => dropoffLocation.scheduledTime;
@@ -71,6 +72,7 @@ class StudentModel {
     required this.dropoffLocation,
     this.assignedVehicle,
     this.assignedRoute,
+    this.todayAbsence,
   });
 
   factory StudentModel.fromJson(Map<String, dynamic> json) {
@@ -96,6 +98,7 @@ class StudentModel {
           ? VehicleModel.fromJson(json['assignedVehicleId'])
           : null,
       assignedRoute: json['assignedRouteId'] is Map ? json['assignedRouteId'] : null,
+      todayAbsence: json['todayAbsence'] is Map ? json['todayAbsence'] as Map<String, dynamic> : null,
     );
   }
 }

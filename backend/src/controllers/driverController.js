@@ -87,6 +87,24 @@ exports.getDriverDashboard = async (req, res) => {
         .lean();
     }
 
+    // Fetch today's absence reports for these students
+    const AbsenceReport = require('../models/AbsenceReport');
+    const studentIds = assignedStudents.map((s) => s._id);
+    const todayAbsences = await AbsenceReport.find({
+      studentId: { $in: studentIds },
+      absenceDate: { $gte: startOfToday, $lte: endOfToday },
+      status: { $in: ['submitted', 'ACKNOWLEDGED'] },
+    }).lean();
+
+    // Attach absence report object to each assigned student
+    assignedStudents = assignedStudents.map((student) => {
+      const abs = todayAbsences.find((a) => a.studentId.toString() === student._id.toString());
+      return {
+        ...student,
+        todayAbsence: abs || null,
+      };
+    });
+
     res.status(200).json({
       success: true,
       data: {
@@ -103,6 +121,7 @@ exports.getDriverDashboard = async (req, res) => {
         activeTrip,
         assignedStudents,
         tripAttendance,
+        todayAbsences,
       },
     });
   } catch (error) {

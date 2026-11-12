@@ -15,6 +15,7 @@ import { ParentListPage } from './pages/parents/ParentListPage';
 import { VehicleListPage } from './pages/fleet/VehicleListPage';
 import { DriverListPage } from './pages/fleet/DriverListPage';
 import { AttendancePage } from './pages/attendance/AttendancePage';
+import { AdminAbsencePage } from './pages/attendance/AdminAbsencePage';
 import { InvoiceListPage } from './pages/billing/InvoiceListPage';
 import { BankAccountListPage } from './pages/billing/BankAccountListPage';
 import { BankDepositVerificationPage } from './pages/billing/BankDepositVerificationPage';
@@ -45,6 +46,9 @@ export function App() {
                 <Route path="/vehicles" element={<VehicleListPage />} />
                 <Route path="/drivers" element={<DriverListPage />} />
                 <Route path="/attendance" element={<AttendancePage />} />
+                <Route path="/attendance/absences" element={<AdminAbsencePage />} />
+                <Route path="/payments/bank-accounts" element={<BankAccountListPage />} />
+                <Route path="/payments/bank-deposits" element={<BankDepositVerificationPage />} />
                 <Route path="/billing" element={<InvoiceListPage />} />
                 <Route path="/incidents" element={<IncidentLogPage />} />
                 <Route path="/reports" element={<ReportsAnalyticsPage />} />

@@ -31,83 +31,6 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     });
   }
 
-  void _showReportAbsenceDialog() {
-    final provider = context.read<ParentDashboardProvider>();
-    final student = provider.selectedStudent;
-    if (student == null) return;
-
-    final reasonController = TextEditingController(text: 'Medical sick leave');
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            const Icon(Icons.notification_important_rounded,
-                color: AppColors.error),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Report Absence for ${student.name.split(' ').first}',
-                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Notifying the van driver ahead of time prevents unnecessary stops and keeps the route running on schedule.',
-              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: reasonController,
-              decoration: const InputDecoration(
-                labelText: 'Reason for absence',
-                hintText: 'e.g., Fever, Family event, School holiday',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-              minimumSize: const Size(110, 44),
-            ),
-            onPressed: () async {
-              Navigator.pop(ctx);
-              final success = await provider.reportStudentAbsence(
-                reasonController.text.trim(),
-              );
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      success
-                          ? 'Absence reported to driver for ${student.name}'
-                          : 'Failed to record absence notice',
-                    ),
-                    backgroundColor:
-                        success ? AppColors.success : AppColors.error,
-                  ),
-                );
-              }
-            },
-            child: const Text('Confirm Absence'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
@@ -327,7 +250,13 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                           onInvoicesTap: () {
                             Navigator.pushNamed(context, AppRoutes.invoices);
                           },
-                          onReportAbsenceTap: _showReportAbsenceDialog,
+                          onReportAbsenceTap: () {
+                            Navigator.pushNamed(
+                              context,
+                              AppRoutes.reportAbsence,
+                              arguments: student,
+                            );
+                          },
                         ),
                         const SizedBox(height: 30),
                       ],
