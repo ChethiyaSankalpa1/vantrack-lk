@@ -33,8 +33,36 @@ const tripSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['scheduled', 'started', 'completed', 'cancelled'],
+      enum: [
+        'scheduled',
+        'assigned',
+        'ready',
+        'started',
+        'active',
+        'completed',
+        'cancelled',
+        'interrupted',
+      ],
       default: 'scheduled',
+    },
+    scheduledStartTime: {
+      type: String,
+      default: '06:30 AM',
+    },
+    scheduledEndTime: {
+      type: String,
+      default: '08:00 AM',
+    },
+    assignedStudents: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Student',
+      },
+    ],
+    initiatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
     },
     startedAt: {
       type: Date,
@@ -58,10 +86,33 @@ const tripSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    cancellationReason: {
+      type: String,
+      default: '',
+    },
+    emergencyNotes: {
+      type: String,
+      default: '',
+    },
+    replacementVehicleId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Vehicle',
+      default: null,
+    },
+    initialLocation: {
+      latitude: Number,
+      longitude: Number,
+      address: String,
+    },
   },
   {
     timestamps: true,
   }
 );
+
+tripSchema.index({ date: 1, status: 1 });
+tripSchema.index({ driverId: 1 });
+tripSchema.index({ vehicleId: 1 });
+tripSchema.index({ routeId: 1 });
 
 module.exports = mongoose.model('Trip', tripSchema);

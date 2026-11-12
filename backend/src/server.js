@@ -40,6 +40,8 @@ io.on('connection', (socket) => {
   socket.on('driver:location-update', (data) => {
     // data: { tripId, vehicleId, latitude, longitude, speed, heading, timestamp }
     io.to(`trip_${data.tripId}`).emit('trip:location-changed', data);
+    // Also broadcast to admin live fleet monitoring room
+    io.to('admin_fleet').emit('fleet:vehicle-moved', data);
   });
 
   // Parent joins trip room to receive live updates
@@ -51,6 +53,17 @@ io.on('connection', (socket) => {
   // Leave room
   socket.on('parent:leave-trip', (tripId) => {
     socket.leave(`trip_${tripId}`);
+  });
+
+  // Admin joins live fleet tracking
+  socket.on('admin:join-fleet', () => {
+    socket.join('admin_fleet');
+    console.log(`[Socket.IO] Admin client ${socket.id} joined admin_fleet`);
+  });
+
+  // Admin leaves live fleet tracking
+  socket.on('admin:leave-fleet', () => {
+    socket.leave('admin_fleet');
   });
 
   socket.on('disconnect', () => {
@@ -69,6 +82,7 @@ app.use('/api/routes', require('./routes/routeRoutes'));
 app.use('/api/notifications', require('./routes/notificationRoutes'));
 app.use('/api/invoices', require('./routes/invoiceRoutes'));
 app.use('/api/incidents', require('./routes/incidentRoutes'));
+app.use('/api/admin', require('./routes/adminRoutes'));
 
 // Health check endpoint
 app.get(['/api', '/api/health'], (req, res) => {
