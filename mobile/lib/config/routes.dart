@@ -11,10 +11,14 @@ import '../screens/common/role_router_screen.dart';
 import '../screens/driver/assistant_dashboard_screen.dart';
 import '../screens/driver/driver_dashboard_screen.dart';
 import '../screens/driver/trip_history_screen.dart';
+import '../screens/invoices/invoices_screen.dart';
+import '../screens/notifications/notifications_screen.dart';
 import '../screens/onboarding/onboarding_screen.dart';
 import '../screens/parent/add_child_screen.dart';
 import '../screens/parent/parent_dashboard_screen.dart';
 import '../screens/parent/student_profile_screen.dart';
+import '../screens/profile/parent_profile_screen.dart';
+import '../screens/settings/settings_screen.dart';
 import '../screens/splash/splash_screen.dart';
 import '../screens/tracking/live_tracking_screen.dart';
 import '../screens/trip/trip_details_screen.dart';
@@ -47,8 +51,8 @@ class AppRoutes {
   static const String profile = '/profile';
   static const String settings = '/settings';
 
-  static Route<dynamic> onGenerateRoute(RouteSettings settings) {
-    switch (settings.name) {
+  static Route<dynamic> onGenerateRoute(RouteSettings routeSettings) {
+    switch (routeSettings.name) {
       case splash:
         return MaterialPageRoute(builder: (_) => const SplashScreen());
       case onboarding:
@@ -56,8 +60,8 @@ class AppRoutes {
       case login:
         return MaterialPageRoute(builder: (_) => const LoginScreen());
       case register:
-        final role = settings.arguments is UserRole
-            ? settings.arguments as UserRole
+        final role = routeSettings.arguments is UserRole
+            ? routeSettings.arguments as UserRole
             : UserRole.parent;
         return MaterialPageRoute(builder: (_) => RegisterScreen(initialRole: role));
       case forgotPassword:
@@ -71,14 +75,14 @@ class AppRoutes {
       case assistantDashboard:
         return MaterialPageRoute(builder: (_) => const AssistantDashboardScreen());
       case studentDetails:
-        final student = settings.arguments as StudentModel;
+        final student = routeSettings.arguments as StudentModel;
         return MaterialPageRoute(builder: (_) => StudentProfileScreen(student: student));
       case addChild:
         return MaterialPageRoute(builder: (_) => const AddChildScreen());
       case liveTracking:
         return MaterialPageRoute(builder: (_) => const LiveTrackingScreen());
       case attendance:
-        final args = settings.arguments as Map<String, dynamic>?;
+        final args = routeSettings.arguments as Map<String, dynamic>?;
         return MaterialPageRoute(
           builder: (_) => AttendanceHistoryScreen(
             studentId: args?['studentId']?.toString(),
@@ -86,7 +90,7 @@ class AppRoutes {
           ),
         );
       case qrScanner:
-        final args = settings.arguments as Map<String, dynamic>?;
+        final args = routeSettings.arguments as Map<String, dynamic>?;
         return MaterialPageRoute(
           builder: (_) => QrScannerScreen(
             tripId: args?['tripId']?.toString() ?? '',
@@ -94,7 +98,7 @@ class AppRoutes {
           ),
         );
       case tripDetails:
-        final args = settings.arguments as Map<String, dynamic>;
+        final args = routeSettings.arguments as Map<String, dynamic>;
         return MaterialPageRoute(
           builder: (_) => TripDetailsScreen(
             trip: args['trip'] as TripModel,
@@ -104,23 +108,19 @@ class AppRoutes {
       case tripHistory:
         return MaterialPageRoute(builder: (_) => const TripHistoryScreen());
       case invoices:
-        return MaterialPageRoute(
-          builder: (_) => Scaffold(
-            appBar: AppBar(title: const Text('Monthly Invoices & Receipts')),
-            body: const Center(
-              child: Text(
-                'Monthly Invoices & PayHere Integration\n(Coming in Stage 8)',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-        );
+      case paymentHistory:
+        return MaterialPageRoute(builder: (_) => const InvoicesScreen());
+      case notifications:
+        return MaterialPageRoute(builder: (_) => const NotificationsScreen());
+      case profile:
+        return MaterialPageRoute(builder: (_) => const ParentProfileScreen());
+      case settings:
+        return MaterialPageRoute(builder: (_) => const SettingsScreen());
       default:
         return MaterialPageRoute(
           builder: (_) => Scaffold(
             body: Center(
-              child: Text('No route defined for ${settings.name}'),
+              child: Text('No route defined for ${routeSettings.name}'),
             ),
           ),
         );

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1077072282857",
+    "project_id": "vantrtack-lk",
+    "storage_bucket": "vantrtack-lk.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1077072282857:android:a713879375b7029d1e1c78",
+        "android_client_info": {
+          "package_name": "lk.vantrack.vantrack_lk"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAY3hU-1Sr3l3PH6qBzo1Hrq8SHw6cIoic"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

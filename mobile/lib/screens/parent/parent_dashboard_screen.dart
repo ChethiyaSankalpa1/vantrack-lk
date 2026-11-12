@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../config/app_colors.dart';
 import '../../config/routes.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/notification_provider.dart';
 import '../../providers/parent_dashboard_provider.dart';
 import '../../widgets/child_selector_bar.dart';
 import '../../widgets/custom_button.dart';
@@ -161,11 +162,6 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         ),
         actions: [
           IconButton(
-            tooltip: 'Refresh',
-            icon: const Icon(Icons.refresh_rounded, color: AppColors.primary),
-            onPressed: () => parentProvider.loadDashboard(),
-          ),
-          IconButton(
             tooltip: 'Student Profile & QR',
             icon: const Icon(Icons.qr_code_rounded, color: AppColors.primary),
             onPressed: () {
@@ -178,17 +174,78 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               }
             },
           ),
-          IconButton(
-            tooltip: 'Logout',
-            icon: const Icon(Icons.logout_rounded, color: AppColors.error),
-            onPressed: () async {
-              await authProvider.logout();
-              if (context.mounted) {
-                Navigator.pushReplacementNamed(context, AppRoutes.login);
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                tooltip: 'Notifications',
+                icon: const Icon(Icons.notifications_outlined, color: AppColors.primary),
+                onPressed: () => Navigator.pushNamed(context, AppRoutes.notifications),
+              ),
+              if (context.watch<NotificationProvider>().unreadCount > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(color: AppColors.error, shape: BoxShape.circle),
+                    child: Text(
+                      '${context.watch<NotificationProvider>().unreadCount}',
+                      style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert_rounded, color: AppColors.primary),
+            onSelected: (value) async {
+              if (value == 'profile') {
+                Navigator.pushNamed(context, AppRoutes.profile);
+              } else if (value == 'settings') {
+                Navigator.pushNamed(context, AppRoutes.settings);
+              } else if (value == 'logout') {
+                await authProvider.logout();
+                if (context.mounted) {
+                  Navigator.pushReplacementNamed(context, AppRoutes.login);
+                }
               }
             },
+            itemBuilder: (ctx) => [
+              const PopupMenuItem(
+                value: 'profile',
+                child: Row(
+                  children: [
+                    Icon(Icons.person_outline_rounded, size: 18),
+                    SizedBox(width: 8),
+                    Text('My Profile'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'settings',
+                child: Row(
+                  children: [
+                    Icon(Icons.settings_outlined, size: 18),
+                    SizedBox(width: 8),
+                    Text('Settings'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout_rounded, size: 18, color: AppColors.error),
+                    SizedBox(width: 8),
+                    Text('Sign Out', style: TextStyle(color: AppColors.error)),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 4),
         ],
       ),
       body: RefreshIndicator(

@@ -4,6 +4,8 @@ import '../../config/app_colors.dart';
 import '../../config/routes.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/driver_provider.dart';
+import '../../providers/notification_provider.dart';
+import '../profile/driver_profile_screen.dart';
 import 'widgets/driver_trip_card.dart';
 import 'widgets/driver_student_list.dart';
 import 'widgets/gps_status_banner.dart';
@@ -115,23 +117,82 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
             icon: const Icon(Icons.history_rounded, color: Colors.white),
             onPressed: () => Navigator.pushNamed(context, AppRoutes.tripHistory),
           ),
-          IconButton(
-            tooltip: 'Refresh',
-            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-            onPressed: () => driver.loadDashboard(),
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                tooltip: 'Notifications',
+                icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+                onPressed: () => Navigator.pushNamed(context, AppRoutes.notifications),
+              ),
+              if (context.watch<NotificationProvider>().unreadCount > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(color: AppColors.error, shape: BoxShape.circle),
+                    child: Text(
+                      '${context.watch<NotificationProvider>().unreadCount}',
+                      style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+            ],
           ),
-          IconButton(
-            tooltip: 'Logout',
-            icon: const Icon(Icons.logout_rounded, color: Colors.white70),
-            onPressed: () async {
-              driver.dispose();
-              await auth.logout();
-              if (context.mounted) {
-                Navigator.pushReplacementNamed(context, AppRoutes.login);
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
+            onSelected: (value) async {
+              if (value == 'profile') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DriverProfileScreen()),
+                );
+              } else if (value == 'settings') {
+                Navigator.pushNamed(context, AppRoutes.settings);
+              } else if (value == 'logout') {
+                driver.dispose();
+                await auth.logout();
+                if (context.mounted) {
+                  Navigator.pushReplacementNamed(context, AppRoutes.login);
+                }
               }
             },
+            itemBuilder: (ctx) => [
+              const PopupMenuItem(
+                value: 'profile',
+                child: Row(
+                  children: [
+                    Icon(Icons.badge_outlined, size: 18),
+                    SizedBox(width: 8),
+                    Text('Driver Profile'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'settings',
+                child: Row(
+                  children: [
+                    Icon(Icons.settings_outlined, size: 18),
+                    SizedBox(width: 8),
+                    Text('Settings'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout_rounded, size: 18, color: AppColors.error),
+                    SizedBox(width: 8),
+                    Text('Sign Out', style: TextStyle(color: AppColors.error)),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 4),
         ],
       ),
       body: driver.isLoading && data == null

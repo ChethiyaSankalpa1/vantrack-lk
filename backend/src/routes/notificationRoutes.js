@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { protect } = require('../middlewares/auth');
 const Notification = require('../models/Notification');
+const { registerFcmToken, sendNotification } = require('../services/notificationService');
 
 // Get notifications for logged-in user
 router.get('/', protect, async (req, res) => {
@@ -43,6 +44,37 @@ router.put('/:id/read', protect, async (req, res) => {
   try {
     await Notification.findByIdAndUpdate(req.params.id, { isRead: true });
     res.status(200).json({ success: true, message: 'Notification marked as read' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Register FCM Device Token
+router.post('/fcm-token', protect, async (req, res) => {
+  try {
+    const { token, device = 'android' } = req.body;
+    if (!token) {
+      return res.status(400).json({ success: false, message: 'FCM token is required' });
+    }
+    await registerFcmToken(req.user._id, token, device);
+    res.status(200).json({ success: true, message: 'FCM token registered successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Send test push notification
+router.post('/test', protect, async (req, res) => {
+  try {
+    const io = req.app.get('io');
+    const notif = await sendNotification({
+      userId: req.user._id,
+      title: req.body.title || '🔔 VanTrack LK Notification Test',
+      message: req.body.message || 'Push and in-app notifications are working properly!',
+      type: 'general',
+      io,
+    });
+    res.status(200).json({ success: true, message: 'Notification sent', data: notif });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

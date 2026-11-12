@@ -7,8 +7,11 @@ import 'config/routes.dart';
 import 'core/storage/local_storage.dart';
 import 'providers/auth_provider.dart';
 import 'providers/driver_provider.dart';
+import 'providers/invoice_provider.dart';
+import 'providers/notification_provider.dart';
 import 'providers/parent_dashboard_provider.dart';
 import 'providers/tracking_provider.dart';
+import 'services/fcm_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,6 +27,9 @@ void main() async {
   // Initialize persistent storage
   await LocalStorage.init();
 
+  // Initialize Firebase Cloud Messaging (FCM)
+  await FcmService.init();
+
   runApp(const VanTrackApp());
 }
 
@@ -38,6 +44,8 @@ class VanTrackApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ParentDashboardProvider()),
         ChangeNotifierProvider(create: (_) => DriverProvider()),
         ChangeNotifierProvider(create: (_) => TrackingProvider()),
+        ChangeNotifierProvider(create: (_) => NotificationProvider()),
+        ChangeNotifierProvider(create: (_) => InvoiceProvider()),
       ],
       child: MaterialApp(
         title: AppConstants.appName,

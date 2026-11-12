@@ -5,6 +5,7 @@ const Student = require('../models/Student');
 const Attendance = require('../models/Attendance');
 const Incident = require('../models/Incident');
 const VehicleLocation = require('../models/VehicleLocation');
+const { broadcastToTripParents } = require('../services/notificationService');
 
 /**
  * @desc    Get driver dashboard data (assigned vehicle, today's trips, students)
@@ -135,6 +136,16 @@ exports.startTrip = async (req, res) => {
       });
     }
 
+    // Push notification to all parents on this trip
+    broadcastToTripParents({
+      tripId: trip._id,
+      title: '🚌 School Van Trip Started',
+      message: `The school van journey has commenced. Live GPS tracking is now active.`,
+      type: 'trip_start',
+      data: { tripId: trip._id.toString() },
+      io,
+    }).catch((e) => console.error(e));
+
     res.status(200).json({
       success: true,
       message: 'Trip started. GPS sharing is now active.',
@@ -178,6 +189,16 @@ exports.endTrip = async (req, res) => {
         endedAt: trip.endedAt,
       });
     }
+
+    // Push notification to all parents
+    broadcastToTripParents({
+      tripId: trip._id,
+      title: '🏁 School Van Trip Completed',
+      message: `The school transportation trip has safely finished.`,
+      type: 'general',
+      data: { tripId: trip._id.toString() },
+      io,
+    }).catch((e) => console.error(e));
 
     res.status(200).json({
       success: true,
@@ -323,6 +344,19 @@ exports.reportIncident = async (req, res) => {
         estimatedDelayMinutes,
         reportedAt: incident.createdAt,
       });
+
+      // Broadcast in-app & push notification to all affected parents
+      broadcastToTripParents({
+        tripId,
+        title: type === 'breakdown' ? '🔧 Vehicle Breakdown Reported' : '⚠️ Travel Delay Notification',
+        message: `${title}: ${description} (${estimatedDelayMinutes} min expected delay)`,
+        type: type === 'breakdown' ? 'breakdown' : 'delay',
+        data: {
+          tripId: tripId.toString(),
+          incidentId: incident._id.toString(),
+        },
+        io,
+      }).catch((e) => console.error(e));
     }
 
     res.status(201).json({

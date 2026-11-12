@@ -67,6 +67,8 @@ app.use('/api/driver', require('./routes/driverRoutes'));
 app.use('/api/attendance', require('./routes/attendanceRoutes'));
 app.use('/api/routes', require('./routes/routeRoutes'));
 app.use('/api/notifications', require('./routes/notificationRoutes'));
+app.use('/api/invoices', require('./routes/invoiceRoutes'));
+app.use('/api/incidents', require('./routes/incidentRoutes'));
 
 // Health check endpoint
 app.get(['/api', '/api/health'], (req, res) => {
