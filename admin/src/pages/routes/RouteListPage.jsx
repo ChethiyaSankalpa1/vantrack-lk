@@ -97,7 +97,24 @@ export const RouteListPage = () => {
         fetchRoutes();
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to delete route.');
+      if (err.response?.data?.hasTrips) {
+        const force = window.confirm(
+          `This route is currently assigned to ${err.response.data.tripsCount} scheduled trip(s).\n\nDo you want to FORCE DELETE this route and remove those scheduled trips?`
+        );
+        if (force) {
+          try {
+            const forceRes = await client.delete(`/routes/${route._id}?force=true`);
+            if (forceRes.data.success) {
+              alert(forceRes.data.message);
+              fetchRoutes();
+            }
+          } catch (fErr) {
+            alert(fErr.response?.data?.message || 'Failed to force delete route.');
+          }
+        }
+      } else {
+        alert(err.response?.data?.message || err.message || 'Failed to delete route.');
+      }
     }
   };
 

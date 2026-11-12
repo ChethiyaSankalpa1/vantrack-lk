@@ -54,4 +54,13 @@ router.put('/incidents/:id/resolve', adminController.resolveIncident);
 // 9. Audit Logs
 router.get('/audit-logs', adminController.getAuditLogs);
 
+// 10. Route Management (Administrative)
+const routeController = require('../controllers/routeController');
+router.get('/routes', routeController.getAllRoutes);
+router.post('/routes', routeController.createRoute);
+router.get('/routes/:id', routeController.getRouteById);
+router.put('/routes/:id', routeController.updateRoute);
+router.patch('/routes/:id/status', routeController.toggleRouteStatus);
+router.delete('/routes/:id', routeController.deleteRoute);
+
 module.exports = router;
