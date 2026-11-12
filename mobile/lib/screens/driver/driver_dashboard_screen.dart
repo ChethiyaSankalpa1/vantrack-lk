@@ -148,6 +148,8 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                   context,
                   MaterialPageRoute(builder: (_) => const DriverProfileScreen()),
                 );
+              } else if (value == 'inspection') {
+                _showVehicleInspectionDialog(context);
               } else if (value == 'settings') {
                 Navigator.pushNamed(context, AppRoutes.settings);
               } else if (value == 'logout') {
@@ -166,6 +168,16 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                     Icon(Icons.badge_outlined, size: 18),
                     SizedBox(width: 8),
                     Text('Driver Profile'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'inspection',
+                child: Row(
+                  children: [
+                    Icon(Icons.verified_user_outlined, size: 18, color: AppColors.accent),
+                    SizedBox(width: 8),
+                    Text('Pre-Trip Safety Inspection'),
                   ],
                 ),
               ),
@@ -794,5 +806,98 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
         ),
       );
     }
+  }
+
+  void _showVehicleInspectionDialog(BuildContext context) {
+    bool tiresOk = true;
+    bool brakesOk = true;
+    bool lightsOk = true;
+    bool doorsOk = true;
+    bool firstAidOk = true;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(
+            children: [
+              Icon(Icons.verified_user_rounded, color: AppColors.accent),
+              SizedBox(width: 8),
+              Text('Pre-Trip Vehicle Safety Check', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Verify all safety items before departing on school routes:',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 12),
+                CheckboxListTile(
+                  dense: true,
+                  title: const Text('🛞 Tires & Air Pressure OK'),
+                  value: tiresOk,
+                  activeColor: AppColors.accent,
+                  onChanged: (v) => setDialogState(() => tiresOk = v ?? false),
+                ),
+                CheckboxListTile(
+                  dense: true,
+                  title: const Text('🛑 Service Brakes & Handbrake OK'),
+                  value: brakesOk,
+                  activeColor: AppColors.accent,
+                  onChanged: (v) => setDialogState(() => brakesOk = v ?? false),
+                ),
+                CheckboxListTile(
+                  dense: true,
+                  title: const Text('💡 Headlights, Turn Signals & Brake Lights'),
+                  value: lightsOk,
+                  activeColor: AppColors.accent,
+                  onChanged: (v) => setDialogState(() => lightsOk = v ?? false),
+                ),
+                CheckboxListTile(
+                  dense: true,
+                  title: const Text('🚪 Passenger Doors & Emergency Exits'),
+                  value: doorsOk,
+                  activeColor: AppColors.accent,
+                  onChanged: (v) => setDialogState(() => doorsOk = v ?? false),
+                ),
+                CheckboxListTile(
+                  dense: true,
+                  title: const Text('🚑 First Aid Kit & Fire Extinguisher Checked'),
+                  value: firstAidOk,
+                  activeColor: AppColors.accent,
+                  onChanged: (v) => setDialogState(() => firstAidOk = v ?? false),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent),
+              onPressed: () {
+                Navigator.pop(ctx);
+                final allPassed = tiresOk && brakesOk && lightsOk && doorsOk && firstAidOk;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(allPassed
+                        ? '🛡️ Pre-Trip Vehicle Safety Inspection PASSED & Logged.'
+                        : '⚠️ Safety Inspection Warning: Please resolve failed items before departure.'),
+                    backgroundColor: allPassed ? AppColors.success : AppColors.warning,
+                  ),
+                );
+              },
+              child: const Text('Submit Inspection'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

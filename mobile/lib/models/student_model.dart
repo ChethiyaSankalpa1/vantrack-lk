@@ -38,6 +38,9 @@ class StudentModel {
   final String schoolName;
   final String grade;
   final String parentId;
+  final String? parentName;
+  final String? parentPhone;
+  final String? parentEmergencyContact;
   final String? photoUrl;
   final String? qrCodeString;
   final double monthlyFee;
@@ -57,6 +60,9 @@ class StudentModel {
     required this.schoolName,
     required this.grade,
     required this.parentId,
+    this.parentName,
+    this.parentPhone,
+    this.parentEmergencyContact,
     this.photoUrl,
     this.qrCodeString,
     this.monthlyFee = 7500,
@@ -68,13 +74,18 @@ class StudentModel {
   });
 
   factory StudentModel.fromJson(Map<String, dynamic> json) {
+    final parentJson = json['parentId'] is Map ? json['parentId'] as Map<String, dynamic> : null;
+
     return StudentModel(
       id: json['id'] ?? json['_id'] ?? '',
       name: json['name'] ?? '',
       admissionNumber: json['admissionNumber'],
       schoolName: json['schoolName'] ?? 'School',
       grade: json['grade'] ?? '',
-      parentId: json['parentId'] is Map ? json['parentId']['_id'] : (json['parentId'] ?? ''),
+      parentId: parentJson != null ? (parentJson['id'] ?? parentJson['_id'] ?? '') : (json['parentId'] ?? ''),
+      parentName: parentJson != null ? parentJson['name'] : null,
+      parentPhone: parentJson != null ? parentJson['phone'] : null,
+      parentEmergencyContact: parentJson != null ? parentJson['emergencyContact'] : null,
       photoUrl: json['photoUrl'],
       qrCodeString: json['qrCodeString'],
       monthlyFee: (json['monthlyFee'] as num?)?.toDouble() ?? 7500.0,

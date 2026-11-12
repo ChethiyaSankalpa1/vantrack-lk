@@ -22,6 +22,7 @@ const notificationSchema = new mongoose.Schema(
         'trip_start',
         'student_boarded',
         'student_dropped',
+        'attendance_alert',
         'approaching_stop',
         'delay',
         'breakdown',

@@ -4,6 +4,7 @@ import '../../config/app_colors.dart';
 import '../../config/routes.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/driver_provider.dart';
+import 'widgets/driver_incident_button.dart';
 import 'widgets/driver_student_list.dart';
 
 class AssistantDashboardScreen extends StatefulWidget {
@@ -29,6 +30,7 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
     final data = driver.dashboardData;
     final user = auth.user;
     final vehicle = data?.vehicle;
+    final route = data?.route;
     final activeTrip = driver.activeTrip;
 
     return Scaffold(
@@ -78,6 +80,11 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
         ),
         actions: [
           IconButton(
+            tooltip: 'Report Delay or Incident',
+            icon: const Icon(Icons.warning_amber_rounded, color: AppColors.warning),
+            onPressed: () => _showIncidentSheet(context, driver),
+          ),
+          IconButton(
             tooltip: 'Refresh',
             icon: const Icon(Icons.refresh_rounded, color: Colors.white),
             onPressed: () => driver.loadDashboard(),
@@ -99,7 +106,7 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                // Vehicle Header
+                // Vehicle & Route Header
                 if (vehicle != null)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -109,7 +116,7 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
                         const Icon(Icons.directions_bus_rounded, color: Colors.white70, size: 20),
                         const SizedBox(width: 8),
                         Text(
-                          vehicle['registrationNumber'] ?? 'WP NB-XXXX',
+                          vehicle['registrationNumber'] ?? 'WP NB-7842',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 15,
@@ -127,6 +134,13 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
                           ),
                         ),
                         const Spacer(),
+                        if (route != null && route['stops'] is List)
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            icon: const Icon(Icons.map_rounded, color: AppColors.accent, size: 20),
+                            tooltip: 'View Route Stops',
+                            onPressed: () => _showRouteStopsDialog(context, route),
+                          ),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
@@ -249,5 +263,106 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
         ),
       );
     }
+  }
+
+  void _showIncidentSheet(BuildContext context, DriverProvider driver) {
+    if (driver.activeTrip == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No active trip in progress to report incidents.'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+
+    DriverIncidentButton.showSheet(
+      context,
+      (type, title, description, delayMinutes) async {
+        final ok = await driver.reportIncident(
+          type: type,
+          title: title,
+          description: description,
+          delayMinutes: delayMinutes,
+        );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(ok ? 'Incident reported — Parents & Admin notified' : 'Failed to report incident'),
+              backgroundColor: ok ? AppColors.warning : AppColors.error,
+            ),
+          );
+        }
+      },
+    );
+  }
+
+  void _showRouteStopsDialog(BuildContext context, Map<String, dynamic> route) {
+    final stops = route['stops'] as List? ?? [];
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.alt_route_rounded, color: AppColors.primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                route['name'] ?? 'Route Stops',
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Route Code: ${route['routeCode'] ?? 'VT-01'}',
+                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              const Divider(height: 16),
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: stops.length,
+                  separatorBuilder: (context, index) => const Divider(height: 8),
+                  itemBuilder: (context, i) {
+                    final stop = stops[i] as Map<String, dynamic>;
+                    final isSchool = stop['type'] == 'school_drop';
+                    return ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(
+                        radius: 12,
+                        backgroundColor: isSchool ? AppColors.accent.withValues(alpha: 0.2) : AppColors.primary.withValues(alpha: 0.1),
+                        child: Text('${i + 1}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                      ),
+                      title: Text(
+                        stop['name'] ?? 'Stop ${i + 1}',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                      ),
+                      subtitle: Text(
+                        'Scheduled: ${stop['scheduledTime'] ?? ''} ${stop['landmark'] != null ? '• ${stop['landmark']}' : ''}',
+                        style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 }

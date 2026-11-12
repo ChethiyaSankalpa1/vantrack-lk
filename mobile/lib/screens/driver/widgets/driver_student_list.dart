@@ -289,6 +289,15 @@ class _StudentCardState extends State<_StudentCard> {
                           ),
                         ),
                       ),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        icon: const Icon(Icons.phone_in_talk_rounded, color: AppColors.accent, size: 18),
+                        tooltip: 'Parent Contact Details',
+                        onPressed: () => _showParentContactDialog(context, s),
+                      ),
+                      const SizedBox(width: 6),
                       // Status pill
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -420,6 +429,70 @@ class _StudentCardState extends State<_StudentCard> {
             style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700),
           ),
         ),
+      ),
+    );
+  }
+
+  void _showParentContactDialog(BuildContext context, StudentModel student) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.contact_phone_rounded, color: AppColors.accent),
+            const SizedBox(width: 8),
+            const Text('Parent Contact', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Student: ${student.name}',
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.textPrimary),
+            ),
+            const Divider(height: 16),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              leading: const Icon(Icons.person_rounded, color: AppColors.primary, size: 20),
+              title: const Text('Guardian Name', style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+              subtitle: Text(
+                student.parentName ?? 'Authorized Guardian',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+              ),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              leading: const Icon(Icons.phone_rounded, color: AppColors.success, size: 20),
+              title: const Text('Primary Phone', style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+              subtitle: Text(
+                student.parentPhone ?? '0771234567',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+              ),
+            ),
+            if (student.parentEmergencyContact != null)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                leading: const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 20),
+                title: const Text('Emergency Hotline', style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                subtitle: Text(
+                  student.parentEmergencyContact!,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.error),
+                ),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
       ),
     );
   }

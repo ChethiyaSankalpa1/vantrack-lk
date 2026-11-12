@@ -102,13 +102,38 @@ class ActiveTripBrief {
   }
 }
 
+class ParentBrief {
+  final String id;
+  final String name;
+  final String phone;
+  final String? email;
+
+  const ParentBrief({
+    required this.id,
+    required this.name,
+    required this.phone,
+    this.email,
+  });
+
+  factory ParentBrief.fromJson(Map<String, dynamic> json) {
+    return ParentBrief(
+      id: json['id'] ?? json['_id'] ?? '',
+      name: json['name'] ?? '',
+      phone: json['phone'] ?? '',
+      email: json['email'],
+    );
+  }
+}
+
 class ParentDashboardData {
+  final ParentBrief? parent;
   final List<StudentModel> students;
   final ActiveTripBrief? activeTrip;
   final List<AttendanceBrief> todayAttendance;
   final InvoiceBrief? latestInvoice;
 
   const ParentDashboardData({
+    this.parent,
     required this.students,
     this.activeTrip,
     this.todayAttendance = const [],
@@ -120,6 +145,9 @@ class ParentDashboardData {
     final rawAttendance = json['todayAttendance'] as List? ?? [];
 
     return ParentDashboardData(
+      parent: json['parent'] != null
+          ? ParentBrief.fromJson(json['parent'] as Map<String, dynamic>)
+          : null,
       students: rawStudents.map((s) => StudentModel.fromJson(s as Map<String, dynamic>)).toList(),
       activeTrip: json['activeTrip'] != null
           ? ActiveTripBrief.fromJson(json['activeTrip'] as Map<String, dynamic>)

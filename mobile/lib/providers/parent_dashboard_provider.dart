@@ -86,7 +86,7 @@ class ParentDashboardProvider extends ChangeNotifier {
       }
 
       // Connect real-time socket for instant attendance sync
-      final parentId = _dashboardData?.parent.id;
+      final parentId = _dashboardData?.parent?.id;
       final tripId = _dashboardData?.activeTrip?.id;
       if (parentId != null) {
         _subscribeToAttendance(tripId ?? '', parentId);

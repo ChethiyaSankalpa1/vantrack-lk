@@ -35,13 +35,17 @@ class DriverIncidentButton extends StatelessWidget {
     );
   }
 
-  void _showIncidentSheet(BuildContext context) {
+  static void showSheet(BuildContext context, IncidentReportCallback onReport) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _IncidentReportSheet(onReport: onReport),
     );
+  }
+
+  void _showIncidentSheet(BuildContext context) {
+    showSheet(context, onReport);
   }
 }
 
