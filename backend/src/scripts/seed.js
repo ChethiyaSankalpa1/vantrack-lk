@@ -14,6 +14,8 @@ const Trip = require('../models/Trip');
 const Attendance = require('../models/Attendance');
 const Invoice = require('../models/Invoice');
 const Notification = require('../models/Notification');
+const BankAccount = require('../models/BankAccount');
+const BankDeposit = require('../models/BankDeposit');
 
 const seedData = async () => {
   try {
@@ -32,6 +34,8 @@ const seedData = async () => {
       Attendance.deleteMany(),
       Invoice.deleteMany(),
       Notification.deleteMany(),
+      BankAccount.deleteMany(),
+      BankDeposit.deleteMany(),
     ]);
 
     console.log('[Seed] Old data wiped. Creating user accounts...');
@@ -336,6 +340,33 @@ const seedData = async () => {
         studentId: student1._id.toString(),
         tripId: activeTrip._id.toString(),
       },
+    });
+
+    // 9. Create Official Operator Bank Accounts
+    await BankAccount.create({
+      bankName: 'Commercial Bank of Ceylon',
+      accountHolderName: 'VanTrack LK Fleet Services (Pvt) Ltd',
+      accountNumber: '800-123456-789',
+      branchName: 'Maharagama Main Branch',
+      branchCode: '080',
+      accountType: 'Current',
+      instructions: 'Please deposit monthly fee via CDM / Online Banking & upload photo/PDF of receipt.',
+      displayName: 'Commercial Bank - Maharagama (Primary)',
+      isDefault: true,
+      isActive: true,
+    });
+
+    await BankAccount.create({
+      bankName: 'Bank of Ceylon (BOC)',
+      accountHolderName: 'VanTrack LK Operations',
+      accountNumber: '702-987654-321',
+      branchName: 'Nugegoda City Branch',
+      branchCode: '702',
+      accountType: 'Savings',
+      instructions: 'BOC CDM / SmartPay deposit accepted.',
+      displayName: 'Bank of Ceylon - Nugegoda',
+      isDefault: false,
+      isActive: true,
     });
 
     console.log('========================================================');

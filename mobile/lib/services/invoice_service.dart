@@ -61,4 +61,41 @@ class InvoiceService {
       throw ApiException.fromDioError(e);
     }
   }
+
+  /// Get active operator bank accounts
+  Future<List<Map<String, dynamic>>> getActiveBankAccounts() async {
+    try {
+      final response = await _api.get('/bank-accounts/active');
+      final list = response.data['data'] as List? ?? [];
+      return list.map((item) => item as Map<String, dynamic>).toList();
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  /// Submit Bank Deposit Receipt Form
+  Future<Map<String, dynamic>> submitBankDeposit({
+    required String invoiceId,
+    required String bankAccountId,
+    required String depositorName,
+    required String depositDate,
+    String? depositReferenceNumber,
+    required String receiptFileUrl,
+    String? notes,
+  }) async {
+    try {
+      final response = await _api.post('/invoices/$invoiceId/bank-deposit', data: {
+        'bankAccountId': bankAccountId,
+        'depositorName': depositorName,
+        'depositDate': depositDate,
+        if (depositReferenceNumber != null && depositReferenceNumber.isNotEmpty)
+          'depositReferenceNumber': depositReferenceNumber,
+        'receiptFileUrl': receiptFileUrl,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+      });
+      return response.data['data'] as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
 }

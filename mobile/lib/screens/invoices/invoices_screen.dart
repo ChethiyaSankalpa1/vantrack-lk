@@ -587,64 +587,230 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
     }
   }
 
-  void _showBankSlipDialog(InvoiceProvider provider, InvoiceModel invoice) {
+  Future<void> _showBankSlipDialog(InvoiceProvider provider, InvoiceModel invoice) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Loading Operator Bank Accounts...'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final bankAccounts = await provider.getActiveBankAccounts();
+    if (!mounted) return;
+    Navigator.pop(context); // Close loading dialog
+
+    if (bankAccounts.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No active bank accounts found. Please use PayHere Online or Cash Payment.'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+
+    String selectedBankId = bankAccounts.first['_id']?.toString() ?? '';
+    final depositorController = TextEditingController();
+    final dateController = TextEditingController(text: DateTime.now().toIso8601String().split('T').first);
+    final refController = TextEditingController();
     final urlController = TextEditingController();
     final notesController = TextEditingController();
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('Submit Bank Deposit Slip'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Commercial Bank of Ceylon\nAccount: 800-123456-789\nVanTrack LK Fleet Services (Pvt) Ltd',
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary, height: 1.3),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final currentAcc = bankAccounts.firstWhere(
+            (a) => a['_id']?.toString() == selectedBankId,
+            orElse: () => bankAccounts.first,
+          );
+
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Row(
+              children: [
+                Icon(Icons.account_balance_rounded, color: AppColors.primary),
+                SizedBox(width: 8),
+                Text('Bank Deposit Receipt Form', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('1. Select Operator Bank Destination:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedBankId,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    items: bankAccounts.map((acc) {
+                      final isDef = acc['isDefault'] == true;
+                      return DropdownMenuItem<String>(
+                        value: acc['_id'].toString(),
+                        child: Text(
+                          '${acc['bankName']} - ${acc['accountNumber']} ${isDef ? '(DEFAULT)' : ''}',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) setDialogState(() => selectedBankId = val);
+                    },
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Selected Bank Account Highlight Card
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              currentAcc['bankName'] ?? 'Bank',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primary),
+                            ),
+                            IconButton(
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              icon: const Icon(Icons.copy_rounded, size: 16, color: AppColors.accent),
+                              tooltip: 'Copy Account Number',
+                              onPressed: () {
+                                final num = currentAcc['accountNumber']?.toString() ?? '';
+                                if (num.isNotEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Account number copied: $num')),
+                                  );
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                        Text('Account No: ${currentAcc['accountNumber']}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.accentDark)),
+                        Text('Holder: ${currentAcc['accountHolderName']}', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                        Text('Branch: ${currentAcc['branchName']}', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+                  const Text('2. Enter Deposit & Receipt Details:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+
+                  TextField(
+                    controller: depositorController,
+                    decoration: const InputDecoration(
+                      labelText: 'Depositor Name *',
+                      hintText: 'e.g., Kasun Jayawardena',
+                      prefixIcon: Icon(Icons.person_outline_rounded),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: dateController,
+                    decoration: const InputDecoration(
+                      labelText: 'Deposit Date (YYYY-MM-DD) *',
+                      prefixIcon: Icon(Icons.calendar_today_rounded),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: refController,
+                    decoration: const InputDecoration(
+                      labelText: 'Bank Ref / Slip Number (Optional)',
+                      hintText: 'e.g., CDM-84920 or Ref #',
+                      prefixIcon: Icon(Icons.confirmation_number_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: urlController,
+                    decoration: const InputDecoration(
+                      labelText: 'Receipt Image URL / File Link *',
+                      hintText: 'https://cloudinary.com/... or Slip Photo URL',
+                      prefixIcon: Icon(Icons.link_rounded),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: notesController,
+                    decoration: const InputDecoration(
+                      labelText: 'Additional Notes (Optional)',
+                      hintText: 'e.g. Paid via CDM Maharagama',
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: urlController,
-                decoration: const InputDecoration(
-                  labelText: 'Receipt Image URL / Slip Reference',
-                  hintText: 'https://cloudinary.com/... or Bank Ref #',
-                  prefixIcon: Icon(Icons.link_rounded),
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: notesController,
-                decoration: const InputDecoration(
-                  labelText: 'Additional Notes (Optional)',
-                  hintText: 'e.g. Paid via Online Banking',
-                ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent),
+                onPressed: () async {
+                  final depName = depositorController.text.trim();
+                  final depDate = dateController.text.trim();
+                  final fileUrl = urlController.text.trim();
+
+                  if (depName.isEmpty || depDate.isEmpty || fileUrl.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please fill in Depositor Name, Date, and Receipt URL.')),
+                    );
+                    return;
+                  }
+
+                  Navigator.pop(ctx);
+                  final ok = await provider.submitBankDeposit(
+                    invoiceId: invoice.id,
+                    bankAccountId: selectedBankId,
+                    depositorName: depName,
+                    depositDate: depDate,
+                    depositReferenceNumber: refController.text.trim(),
+                    receiptFileUrl: fileUrl,
+                    notes: notesController.text.trim(),
+                  );
+
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(ok
+                            ? 'Bank deposit slip submitted! Pending admin verification.'
+                            : provider.errorMessage ?? 'Failed to submit bank deposit slip'),
+                        backgroundColor: ok ? AppColors.success : AppColors.error,
+                      ),
+                    );
+                  }
+                },
+                child: const Text('Submit Deposit Slip'),
               ),
             ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () async {
-              final ref = urlController.text.trim();
-              if (ref.isEmpty) return;
-              Navigator.pop(ctx);
-              final ok = await provider.uploadBankSlip(invoice.id, ref, notes: notesController.text.trim());
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(ok ? 'Bank slip submitted. Verification in progress.' : 'Failed to submit slip'),
-                    backgroundColor: ok ? AppColors.success : AppColors.error,
-                  ),
-                );
-              }
-            },
-            child: const Text('Submit Slip'),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -661,9 +827,34 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
             Text('Cash to Driver / Assistant'),
           ],
         ),
-        content: Text(
-          'You may hand the exact monthly fee (${_currencyFormat.format(invoice.amount)}) directly to the school van driver or assistant.\n\nOnce received, the driver will confirm receipt on their VanTrack terminal, and your digital receipt will instantly unlock.',
-          style: const TextStyle(fontSize: 13, height: 1.4),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'You can hand the exact monthly fee (${_currencyFormat.format(invoice.amount)}) directly to your van Driver or Assistant inside the school van.',
+              style: const TextStyle(fontSize: 13, height: 1.4),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.vanAmber.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.vanAmber.withValues(alpha: 0.3)),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('💡 How In-Person Cash Verification Works:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.textPrimary)),
+                  SizedBox(height: 4),
+                  Text('1. Hand the cash to Driver Sunil Shantha or Assistant Kamal Bandara.', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                  Text('2. The Driver/Assistant taps "Confirm Cash Received" on their terminal.', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                  Text('3. You instantly receive a payment notification & digital receipt!', style: TextStyle(fontSize: 11, color: AppColors.accentDark, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Understood')),

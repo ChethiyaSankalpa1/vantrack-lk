@@ -5,6 +5,7 @@ import '../../config/routes.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/driver_provider.dart';
 import '../../providers/notification_provider.dart';
+import '../../services/driver_service.dart';
 import '../profile/driver_profile_screen.dart';
 import 'widgets/driver_trip_card.dart';
 import 'widgets/driver_student_list.dart';
@@ -112,6 +113,11 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                 ),
               ),
             ),
+          IconButton(
+            tooltip: 'In-Person Cash Fee Collection',
+            icon: const Icon(Icons.payments_rounded, color: AppColors.vanAmber),
+            onPressed: () => _showCashCollectionDialog(context),
+          ),
           IconButton(
             tooltip: 'Past Trips History',
             icon: const Icon(Icons.history_rounded, color: Colors.white),
@@ -898,6 +904,162 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                 );
               },
               child: const Text('Submit Inspection'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showCashCollectionDialog(BuildContext context) async {
+    final driverService = DriverService();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Loading Unpaid Invoices for Van Students...'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    List<Map<String, dynamic>> cashInvoices = [];
+    try {
+      cashInvoices = await driverService.getCashPendingInvoices();
+    } catch (_) {}
+
+    if (!context.mounted) return;
+    Navigator.pop(context); // Close loading
+
+    if (!context.mounted) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(
+            children: [
+              Icon(Icons.payments_rounded, color: AppColors.vanAmber),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text('In-Person Cash Fee Collections', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: cashInvoices.isEmpty
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 20),
+                    child: Text(
+                      'All student transport fees for your van are up to date! No pending cash collections.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                    ),
+                  )
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'When a parent hands cash fee in person inside the van, tap "Confirm Cash Received" to issue instant digital receipt:',
+                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      ),
+                      const SizedBox(height: 12),
+                      Flexible(
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: cashInvoices.length,
+                          separatorBuilder: (context, index) => const Divider(height: 12),
+                          itemBuilder: (context, i) {
+                            final inv = cashInvoices[i];
+                            final stu = inv['studentId'] as Map<String, dynamic>?;
+                            final parent = inv['parentId'] as Map<String, dynamic>?;
+                            final invId = inv['_id']?.toString() ?? '';
+                            final amount = inv['amount'] ?? 7500;
+
+                            return Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppColors.vanAmber.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: AppColors.vanAmber.withValues(alpha: 0.3)),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        stu?['name'] ?? 'Student',
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                      ),
+                                      Text(
+                                        'LKR ${amount.toString()}',
+                                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.primary),
+                                      ),
+                                    ],
+                                  ),
+                                  Text(
+                                    'Period: ${inv['monthYear'] ?? ''} • Invoice: ${inv['invoiceNumber'] ?? ''}',
+                                    style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                                  ),
+                                  Text(
+                                    'Parent: ${parent?['name'] ?? 'Guardian'} (${parent?['phone'] ?? ''})',
+                                    style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton.icon(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppColors.accent,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(vertical: 8),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                      ),
+                                      icon: const Icon(Icons.check_circle_rounded, size: 16),
+                                      label: const Text('Confirm Cash Received 💵', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                      onPressed: () async {
+                                        Navigator.pop(ctx);
+                                        final ok = await driverService.confirmCashPayment(invId);
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text(ok
+                                                  ? '💵 Cash payment confirmed for ${stu?['name']}! Parent notified.'
+                                                  : 'Failed to confirm cash payment'),
+                                              backgroundColor: ok ? AppColors.success : AppColors.error,
+                                            ),
+                                          );
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Close'),
             ),
           ],
         ),

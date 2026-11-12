@@ -85,4 +85,46 @@ class InvoiceProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  Future<List<Map<String, dynamic>>> getActiveBankAccounts() async {
+    try {
+      return await _service.getActiveBankAccounts();
+    } catch (e) {
+      _errorMessage = e.toString();
+      return [];
+    }
+  }
+
+  Future<bool> submitBankDeposit({
+    required String invoiceId,
+    required String bankAccountId,
+    required String depositorName,
+    required String depositDate,
+    String? depositReferenceNumber,
+    required String receiptFileUrl,
+    String? notes,
+  }) async {
+    _isPaymentProcessing = true;
+    notifyListeners();
+
+    try {
+      await _service.submitBankDeposit(
+        invoiceId: invoiceId,
+        bankAccountId: bankAccountId,
+        depositorName: depositorName,
+        depositDate: depositDate,
+        depositReferenceNumber: depositReferenceNumber,
+        receiptFileUrl: receiptFileUrl,
+        notes: notes,
+      );
+      await loadInvoices();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      return false;
+    } finally {
+      _isPaymentProcessing = false;
+      notifyListeners();
+    }
+  }
 }

@@ -276,6 +276,94 @@ exports.payHereNotify = async (req, res) => {
 };
 
 /**
+ * @desc    Get pending/unpaid invoices for Driver/Assistant vehicle students
+ * @route   GET /api/invoices/driver/cash-pending
+ * @access  Private (Driver / Assistant)
+ */
+exports.getCashInvoicesForDriver = async (req, res) => {
+  try {
+    const Vehicle = require('../models/Vehicle');
+    const Student = require('../models/Student');
+
+    // Find assigned vehicle
+    const vehicle = await Vehicle.findOne({
+      $or: [{ driverId: req.user._id }, { assistantId: req.user._id }],
+    });
+
+    if (!vehicle) {
+      return res.status(200).json({ success: true, count: 0, data: [] });
+    }
+
+    // Find students assigned to this vehicle
+    const students = await Student.find({ assignedVehicleId: vehicle._id }).select('_id');
+    const studentIds = students.map((s) => s._id);
+
+    // Find unpaid or pending invoices for these students
+    const invoices = await Invoice.find({
+      studentId: { $in: studentIds },
+      status: { $in: ['unpaid', 'overdue', 'pending_verification'] },
+    })
+      .populate('studentId', 'name schoolName grade photoUrl')
+      .populate('parentId', 'name phone email')
+      .sort({ dueDate: 1 })
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      count: invoices.length,
+      data: invoices,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * @desc    Driver or Assistant Confirms Cash Received In-Person inside Van
+ * @route   POST /api/invoices/:id/confirm-cash
+ * @access  Private (Driver / Assistant / Admin)
+ */
+exports.confirmCashPayment = async (req, res) => {
+  try {
+    const invoice = await Invoice.findById(req.params.id)
+      .populate('studentId', 'name schoolName')
+      .populate('parentId', 'name phone email');
+
+    if (!invoice) {
+      return res.status(404).json({ success: false, message: 'Invoice not found.' });
+    }
+
+    if (invoice.status === 'paid') {
+      return res.status(400).json({ success: false, message: 'This invoice is already paid and verified.' });
+    }
+
+    invoice.status = 'paid';
+    invoice.paymentMethod = 'cash_to_driver';
+    invoice.paidAt = new Date();
+    invoice.notes = `In-person cash fee collected by ${req.user.role.toUpperCase()}: ${req.user.name} (${new Date().toLocaleString('en-LK')})`;
+    await invoice.save();
+
+    const io = req.app.get('io');
+    await sendNotification({
+      userId: invoice.parentId._id || invoice.parentId,
+      title: '💵 Cash Payment Received & Verified',
+      message: `Thank you! ${req.user.name} (${req.user.role}) confirmed receipt of LKR ${invoice.amount} cash for ${invoice.studentId?.name || 'child'}'s ${invoice.monthYear} transport fee. Digital receipt unlocked!`,
+      type: 'payment_receipt',
+      data: { invoiceId: invoice._id.toString() },
+      io,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Cash payment of LKR ${invoice.amount} confirmed for ${invoice.studentId?.name}. Parent notified & digital receipt unlocked!`,
+      data: invoice,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
  * @desc    Verify Cash / Bank Transfer payment manually (Admin / Driver approval)
  * @route   PUT /api/invoices/:id/verify
  * @access  Private (Admin / Driver)

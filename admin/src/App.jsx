@@ -16,6 +16,8 @@ import { VehicleListPage } from './pages/fleet/VehicleListPage';
 import { DriverListPage } from './pages/fleet/DriverListPage';
 import { AttendancePage } from './pages/attendance/AttendancePage';
 import { InvoiceListPage } from './pages/billing/InvoiceListPage';
+import { BankAccountListPage } from './pages/billing/BankAccountListPage';
+import { BankDepositVerificationPage } from './pages/billing/BankDepositVerificationPage';
 import { IncidentLogPage } from './pages/incidents/IncidentLogPage';
 import { RouteListPage } from './pages/routes/RouteListPage';
 import { ReportsAnalyticsPage } from './pages/reports/ReportsAnalyticsPage';

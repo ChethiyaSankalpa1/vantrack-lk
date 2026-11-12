@@ -47,6 +47,21 @@ router.get('/invoices', adminController.getInvoices);
 router.post('/invoices/bulk-generate', adminController.generateMonthlyInvoices);
 router.post('/invoices/:id/verify', adminController.verifyInvoicePayment);
 
+// 7b. Bank Account Management
+const bankAccountController = require('../controllers/bankAccountController');
+router.get('/bank-accounts', bankAccountController.getAdminBankAccounts);
+router.post('/bank-accounts', bankAccountController.createBankAccount);
+router.put('/bank-accounts/:id', bankAccountController.updateBankAccount);
+router.patch('/bank-accounts/:id/default', bankAccountController.setDefaultBankAccount);
+router.patch('/bank-accounts/:id/status', bankAccountController.toggleBankAccountStatus);
+router.delete('/bank-accounts/:id', bankAccountController.archiveBankAccount);
+
+// 7c. Bank Deposit Submissions & Verifications
+const bankDepositController = require('../controllers/bankDepositController');
+router.get('/bank-deposits', bankDepositController.getAdminBankDeposits);
+router.post('/bank-deposits/:id/approve', bankDepositController.approveBankDeposit);
+router.post('/bank-deposits/:id/reject', bankDepositController.rejectBankDeposit);
+
 // 8. Incidents
 router.get('/incidents', adminController.getIncidents);
 router.put('/incidents/:id/resolve', adminController.resolveIncident);

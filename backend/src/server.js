@@ -71,6 +71,11 @@ io.on('connection', (socket) => {
   });
 });
 
+// Public / Parent Active Bank Accounts route
+const { protect } = require('./middlewares/auth');
+const bankAccountController = require('./controllers/bankAccountController');
+app.get('/api/bank-accounts/active', protect, bankAccountController.getPublicBankAccounts);
+
 // API Routes
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/upload', require('./routes/uploadRoutes'));

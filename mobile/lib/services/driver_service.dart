@@ -127,4 +127,23 @@ class DriverService {
       throw ApiException.fromDioError(e);
     }
   }
+
+  Future<List<Map<String, dynamic>>> getCashPendingInvoices() async {
+    try {
+      final response = await _api.get('/invoices/driver/cash-pending');
+      final data = response.data['data'] as List? ?? [];
+      return data.map((i) => i as Map<String, dynamic>).toList();
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
+  Future<bool> confirmCashPayment(String invoiceId) async {
+    try {
+      await _api.post('/invoices/$invoiceId/confirm-cash');
+      return true;
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
 }
