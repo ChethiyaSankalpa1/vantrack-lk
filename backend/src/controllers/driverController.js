@@ -14,10 +14,16 @@ const { broadcastToTripParents } = require('../services/notificationService');
  */
 exports.getDriverDashboard = async (req, res) => {
   try {
-    const driverId = req.user._id;
+    const userId = req.user._id;
+    const isAssistant = req.user.role === 'assistant';
 
-    // Find assigned vehicle
-    const vehicle = await Vehicle.findOne({ driverId })
+    // Find assigned vehicle (supports both driver and assistant roles)
+    const vehicleQuery = isAssistant
+      ? { $or: [{ assistantId: userId }, { _id: req.user.assignedVehicleId }] }
+      : { $or: [{ driverId: userId }, { _id: req.user.assignedVehicleId }] };
+
+    const vehicle = await Vehicle.findOne(vehicleQuery)
+      .populate('driverId', 'name phone avatarUrl licenseNumber')
       .populate('assistantId', 'name phone avatarUrl')
       .lean();
 
@@ -42,16 +48,23 @@ exports.getDriverDashboard = async (req, res) => {
     const endOfToday = new Date();
     endOfToday.setHours(23, 59, 59, 999);
 
-    const todayTrips = await Trip.find({
-      driverId,
+    const tripQuery = {
       date: { $gte: startOfToday, $lte: endOfToday },
-    })
+    };
+
+    if (isAssistant) {
+      tripQuery.$or = [{ assistantId: userId }, { vehicleId: vehicle._id }];
+    } else {
+      tripQuery.$or = [{ driverId: userId }, { vehicleId: vehicle._id }];
+    }
+
+    const todayTrips = await Trip.find(tripQuery)
       .populate('routeId')
       .sort({ createdAt: 1 })
       .lean();
 
-    // Active trip
-    const activeTrip = todayTrips.find((t) => t.status === 'started') || null;
+    // Active trip (started or active)
+    const activeTrip = todayTrips.find((t) => t.status === 'started' || t.status === 'active') || null;
 
     // Student list for active/scheduled trips
     let assignedStudents = [];
@@ -284,7 +297,12 @@ exports.updateLocation = async (req, res) => {
  */
 exports.getAssignedStudents = async (req, res) => {
   try {
-    const vehicle = await Vehicle.findOne({ driverId: req.user._id });
+    const userId = req.user._id;
+    const isAssistant = req.user.role === 'assistant';
+    const vehicleQuery = isAssistant
+      ? { $or: [{ assistantId: userId }, { _id: req.user.assignedVehicleId }] }
+      : { $or: [{ driverId: userId }, { _id: req.user.assignedVehicleId }] };
+    const vehicle = await Vehicle.findOne(vehicleQuery);
     const vehicleId = vehicle?._id || req.query.vehicleId;
 
     if (!vehicleId) {
