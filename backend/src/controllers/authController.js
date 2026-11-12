@@ -74,7 +74,8 @@ exports.register = async (req, res) => {
 // @access  Public
 exports.login = async (req, res) => {
   try {
-    const { identifier, password } = req.body;
+    const identifier = req.body.identifier || req.body.email || req.body.phone;
+    const { password } = req.body;
 
     if (!identifier || !password) {
       return res.status(400).json({

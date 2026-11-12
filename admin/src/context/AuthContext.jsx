@@ -32,7 +32,11 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const res = await client.post('/auth/login', { email, password });
+      const res = await client.post('/auth/login', {
+        identifier: email,
+        email,
+        password,
+      });
       if (res.data.success) {
         const { token: jwtToken, user: userData } = res.data.data;
         if (userData.role !== 'admin') {
