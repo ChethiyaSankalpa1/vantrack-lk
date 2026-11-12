@@ -86,6 +86,7 @@ class DriverStudentList extends StatelessWidget {
                       boarded: isBoarded(students[index].id),
                       dropped: isDropped(students[index].id),
                       tripActive: activeTrip != null,
+                      activeTrip: activeTrip,
                       onBoarded: () => onMarkBoarded(students[index].id),
                       onDropped: () => onMarkDropped(students[index].id),
                       onAbsent: () => onMarkAbsent(students[index].id),
@@ -193,6 +194,7 @@ class _StudentCard extends StatefulWidget {
   final bool boarded;
   final bool dropped;
   final bool tripActive;
+  final TripModel? activeTrip;
   final Future<void> Function() onBoarded;
   final Future<void> Function() onDropped;
   final Future<void> Function() onAbsent;
@@ -202,6 +204,7 @@ class _StudentCard extends StatefulWidget {
     required this.boarded,
     required this.dropped,
     required this.tripActive,
+    this.activeTrip,
     required this.onBoarded,
     required this.onDropped,
     required this.onAbsent,
@@ -229,6 +232,8 @@ class _StudentCardState extends State<_StudentCard> {
     final s = widget.student;
     final statusColor = _getStatusColor();
     final statusLabel = _getStatusLabel();
+    final isAfternoon = widget.activeTrip?.tripType == 'afternoon_drop';
+    final dropLabel = isAfternoon ? 'Drop Home' : 'Drop School';
 
     return Container(
       decoration: BoxDecoration(
@@ -318,13 +323,36 @@ class _StudentCardState extends State<_StudentCard> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    s.schoolName,
-                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    '${s.schoolName} (${s.grade})',
+                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
                     overflow: TextOverflow.ellipsis,
                   ),
-                  Text(
-                    'Grade ${s.grade}  •  Pickup: ${s.pickupTime}',
-                    style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      const Icon(Icons.flight_takeoff_rounded, size: 11, color: AppColors.accent),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          'Pickup: ${s.pickupLocation.address} (${s.pickupTime})',
+                          style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      const Icon(Icons.flight_land_rounded, size: 11, color: AppColors.info),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          'Drop: ${s.dropoffLocation.address} (${s.dropoffTime})',
+                          style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
 
                   // Action buttons
@@ -343,8 +371,8 @@ class _StudentCardState extends State<_StudentCard> {
                         ),
                         const SizedBox(width: 6),
                         _buildSmallButton(
-                          label: 'Dropped',
-                          icon: Icons.logout_rounded,
+                          label: dropLabel,
+                          icon: isAfternoon ? Icons.home_rounded : Icons.school_rounded,
                           color: AppColors.info,
                           done: widget.dropped,
                           onPressed: widget.dropped || (!widget.boarded)

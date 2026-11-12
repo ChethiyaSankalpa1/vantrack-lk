@@ -284,15 +284,19 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
-                vehicle['makeModel'] ?? 'Toyota HiAce KDH',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.7),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
+              Flexible(
+                child: Text(
+                  vehicle['makeModel'] ?? 'Toyota HiAce KDH',
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.7),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(

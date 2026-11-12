@@ -125,15 +125,19 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          vehicle['makeModel'] ?? 'Toyota HiAce',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.7),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
+                        Flexible(
+                          child: Text(
+                            vehicle['makeModel'] ?? 'Toyota HiAce',
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.7),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
-                        const Spacer(),
+                        const SizedBox(width: 8),
                         if (route != null && route['stops'] is List)
                           IconButton(
                             visualDensity: VisualDensity.compact,
