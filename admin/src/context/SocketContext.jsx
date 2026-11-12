@@ -4,7 +4,8 @@ import { useAuth } from './AuthContext';
 
 const SocketContext = createContext(null);
 
-const SOCKET_SERVER_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+const SOCKET_SERVER_URL =
+  import.meta.env.VITE_SOCKET_URL || 'https://vantrack-lk.onrender.com';
 
 export const SocketProvider = ({ children }) => {
   const { user } = useAuth();
