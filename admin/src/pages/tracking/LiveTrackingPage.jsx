@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Navigation,
   Bus,
@@ -50,6 +50,7 @@ const createBusIcon = (isActive, hasDelay) => {
 };
 
 export const LiveTrackingPage = () => {
+  const navigate = useNavigate();
   const [fleet, setFleet] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedTrip, setSelectedTrip] = useState(null);
@@ -58,6 +59,8 @@ export const LiveTrackingPage = () => {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
   const markersRef = useRef({});
+  const navigateRef = useRef(navigate);
+  useEffect(() => { navigateRef.current = navigate; }, [navigate]);
 
   // Fetch initial active fleet
   const fetchFleet = async () => {
@@ -122,7 +125,20 @@ export const LiveTrackingPage = () => {
 
     mapInstance.current = map;
 
+    // Delegated click handler: intercepts "Open Trip Dossier" anchor clicks
+    // inside Leaflet popups and uses React Router navigate instead of a full reload.
+    const handlePopupClick = (e) => {
+      const btn = e.target.closest('.vt-trip-dossier-btn');
+      if (btn) {
+        e.preventDefault();
+        const tripId = btn.getAttribute('data-tripid');
+        if (tripId) navigateRef.current(`/trips/${tripId}`);
+      }
+    };
+    mapRef.current.addEventListener('click', handlePopupClick);
+
     return () => {
+      mapRef.current?.removeEventListener('click', handlePopupClick);
       map.remove();
       mapInstance.current = null;
     };
@@ -154,7 +170,7 @@ export const LiveTrackingPage = () => {
             <div><strong>Boarded:</strong> ${item.attendanceCounts?.boarded || 0} students</div>
             ${hasDelay ? `<div style="color: #f59e0b; font-weight: bold;">⚠️ Delay: +${item.delayMinutes}m</div>` : ''}
           </div>
-          <a href="/trips/${item.tripId}" style="color: #f59e0b; text-decoration: underline; font-weight: 600;">Open Trip Dossier</a>
+          <a href="#" data-tripid="${item.tripId}" onclick="return false;" style="color: #f59e0b; text-decoration: underline; font-weight: 600; cursor: pointer; background: none; border: none; padding: 0; font-size: inherit;" class="vt-trip-dossier-btn">Open Trip Dossier</a>
         </div>
       `;
 
