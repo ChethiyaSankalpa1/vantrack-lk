@@ -44,13 +44,13 @@ export const Sidebar = ({ isOpen = false, onClose = () => {} }) => {
       {isOpen && (
         <div
           onClick={onClose}
-          className="fixed inset-0 z-30 bg-slate-950/80 backdrop-blur-sm lg:hidden transition-opacity"
+          className="fixed inset-0 z-[9998] bg-slate-950/80 backdrop-blur-sm lg:hidden transition-opacity"
         />
       )}
 
       {/* Sidebar Drawer */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-slate-800 bg-slate-900/95 backdrop-blur-md transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-[9999] flex w-64 flex-col border-r border-slate-800 bg-slate-900/95 backdrop-blur-md transition-transform duration-300 ease-in-out lg:translate-x-0 ${
           isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
         }`}
       >

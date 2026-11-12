@@ -30,6 +30,8 @@
   height: 100%;
   border-radius: 0.75rem;
   background-color: #0f172a;
+  z-index: 0 !important;
+  isolation: isolate;
 }
 .leaflet-popup-content-wrapper {
   background: #0f172a !important;
