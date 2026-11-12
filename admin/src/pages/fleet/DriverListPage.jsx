@@ -7,6 +7,10 @@ export const DriverListPage = () => {
   const [vehicles, setVehicles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [assigningMember, setAssigningMember] = useState(null);
+  const [selectedVehicleId, setSelectedVehicleId] = useState('');
+  const [assigning, setAssigning] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -51,6 +55,32 @@ export const DriverListPage = () => {
       }
     } catch (err) {
       alert(err.response?.data?.message || 'Error updating status');
+    }
+  };
+
+  const openAssignModal = (member) => {
+    setAssigningMember(member);
+    setSelectedVehicleId(member.assignedVehicleId?._id || '');
+    setAssignModalOpen(true);
+  };
+
+  const handleSaveVehicleAssignment = async (e) => {
+    e.preventDefault();
+    if (!assigningMember) return;
+    setAssigning(true);
+    try {
+      const res = await client.put(`/admin/drivers/${assigningMember._id}/assign-vehicle`, {
+        vehicleId: selectedVehicleId || null,
+      });
+      if (res.data.success) {
+        setAssignModalOpen(false);
+        setAssigningMember(null);
+        fetchCrewAndVehicles();
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Error updating vehicle assignment');
+    } finally {
+      setAssigning(false);
     }
   };
 
@@ -168,16 +198,24 @@ export const DriverListPage = () => {
                     </td>
 
                     <td className="px-4 py-3.5 text-right">
-                      <button
-                        onClick={() => handleToggleStatus(member._id, member.isActive)}
-                        className={`rounded px-2.5 py-1 text-xs font-semibold ${
-                          member.isActive
-                            ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
-                            : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
-                        }`}
-                      >
-                        {member.isActive ? 'Deactivate' : 'Activate'}
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => openAssignModal(member)}
+                          className="rounded px-2.5 py-1 text-xs font-semibold bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 transition"
+                        >
+                          Assign Vehicle
+                        </button>
+                        <button
+                          onClick={() => handleToggleStatus(member._id, member.isActive)}
+                          className={`rounded px-2.5 py-1 text-xs font-semibold ${
+                            member.isActive
+                              ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
+                              : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
+                          }`}
+                        >
+                          {member.isActive ? 'Deactivate' : 'Activate'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -187,7 +225,7 @@ export const DriverListPage = () => {
         )}
       </div>
 
-      {/* Modal */}
+      {/* Register Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
@@ -308,6 +346,98 @@ export const DriverListPage = () => {
                   className="rounded-lg bg-amber-500 px-5 py-2 font-bold text-slate-950 hover:bg-amber-400 disabled:opacity-50"
                 >
                   {saving ? 'Registering...' : 'Register Crew Member'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Vehicle Modal */}
+      {assignModalOpen && assigningMember && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400">
+                <Bus className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-100">Assign Vehicle to Crew</h2>
+                <p className="text-xs text-slate-400">
+                  Link an operational vehicle to {assigningMember.name}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-800 bg-slate-800/40 p-3 mb-4">
+              <div className="flex items-center justify-between text-xs">
+                <div>
+                  <span className="font-bold text-slate-200 block text-sm">{assigningMember.name}</span>
+                  <span className="text-slate-400 block text-[11px]">{assigningMember.phone} &bull; {assigningMember.email}</span>
+                </div>
+                <span
+                  className={`rounded px-2.5 py-1 text-[11px] font-bold uppercase ${
+                    assigningMember.role === 'driver'
+                      ? 'bg-emerald-500/20 text-emerald-400'
+                      : 'bg-cyan-500/20 text-cyan-400'
+                  }`}
+                >
+                  {assigningMember.role}
+                </span>
+              </div>
+              {assigningMember.assignedVehicleId && (
+                <div className="mt-2 pt-2 border-t border-slate-700/60 text-[11px] text-slate-400 flex items-center gap-1.5">
+                  <span>Currently assigned:</span>
+                  <span className="font-semibold text-slate-200">{assigningMember.assignedVehicleId.registrationNumber}</span>
+                </div>
+              )}
+            </div>
+
+            <form onSubmit={handleSaveVehicleAssignment} className="space-y-4 text-xs">
+              <div>
+                <label className="mb-1 block font-semibold text-slate-300">
+                  Select Vehicle to Assign
+                </label>
+                <select
+                  value={selectedVehicleId}
+                  onChange={(e) => setSelectedVehicleId(e.target.value)}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-800 p-2.5 text-slate-100 focus:border-cyan-500 focus:outline-none"
+                >
+                  <option value="">-- Unassigned (Remove from Vehicle) --</option>
+                  {vehicles.map((v) => {
+                    const isOtherDriver = v.driverId && v.driverId._id !== assigningMember._id;
+                    const isOtherAssistant = v.assistantId && v.assistantId._id !== assigningMember._id;
+                    return (
+                      <option key={v._id} value={v._id}>
+                        {v.registrationNumber} - {v.makeModel}
+                        {v.driverId ? ` (Driver: ${v.driverId.name})` : ''}
+                        {v.assistantId ? ` (Assistant: ${v.assistantId.name})` : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+                <p className="mt-1.5 text-[11px] text-slate-500">
+                  Assigning an assistant to a vehicle links them to the active trips and student attendance of that vehicle.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAssignModalOpen(false);
+                    setAssigningMember(null);
+                  }}
+                  className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 font-semibold text-slate-300 hover:bg-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={assigning}
+                  className="rounded-lg bg-cyan-500 px-5 py-2 font-bold text-slate-950 hover:bg-cyan-400 disabled:opacity-50 transition"
+                >
+                  {assigning ? 'Saving...' : 'Save Assignment'}
                 </button>
               </div>
             </form>

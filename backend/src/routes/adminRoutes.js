@@ -34,6 +34,7 @@ router.patch('/users/:id/status', adminController.toggleUserStatus);
 // 5. Drivers, Assistants & Fleet Vehicles
 router.get('/drivers', adminController.getDrivers);
 router.post('/drivers', adminController.createDriver);
+router.put('/drivers/:id/assign-vehicle', adminController.assignCrewVehicle);
 router.get('/vehicles', adminController.getVehicles);
 router.post('/vehicles', adminController.createVehicle);
 router.put('/vehicles/:id', adminController.updateVehicle);

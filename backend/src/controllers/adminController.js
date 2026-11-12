@@ -1037,10 +1037,126 @@ exports.getDrivers = async (req, res) => {
       .sort({ role: 1, name: 1 })
       .lean();
 
+    // Query all vehicles to ensure crew linked via vehicle.driverId or vehicle.assistantId are reflected
+    const vehicles = await Vehicle.find({
+      $or: [
+        { driverId: { $in: crew.map((c) => c._id) } },
+        { assistantId: { $in: crew.map((c) => c._id) } },
+      ],
+    })
+      .select('registrationNumber makeModel driverId assistantId')
+      .lean();
+
+    const populatedCrew = crew.map((member) => {
+      if (!member.assignedVehicleId) {
+        const matchedVeh = vehicles.find(
+          (v) =>
+            (v.driverId && v.driverId.toString() === member._id.toString()) ||
+            (v.assistantId && v.assistantId.toString() === member._id.toString())
+        );
+        if (matchedVeh) {
+          member.assignedVehicleId = {
+            _id: matchedVeh._id,
+            registrationNumber: matchedVeh.registrationNumber,
+            makeModel: matchedVeh.makeModel,
+          };
+        }
+      }
+      return member;
+    });
+
     res.status(200).json({
       success: true,
-      count: crew.length,
-      data: crew,
+      count: populatedCrew.length,
+      data: populatedCrew,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * @desc    Assign Vehicle to Driver or Assistant
+ * @route   PUT /api/admin/drivers/:id/assign-vehicle
+ * @access  Private (Admin)
+ */
+exports.assignCrewVehicle = async (req, res) => {
+  try {
+    const { vehicleId } = req.body;
+    const crewMember = await User.findById(req.params.id);
+    if (!crewMember) {
+      return res.status(404).json({ success: false, message: 'Crew member not found.' });
+    }
+
+    // If unassigning
+    if (!vehicleId) {
+      if (crewMember.assignedVehicleId) {
+        if (crewMember.role === 'assistant') {
+          await Vehicle.findByIdAndUpdate(crewMember.assignedVehicleId, { assistantId: null });
+        } else if (crewMember.role === 'driver') {
+          await Vehicle.findByIdAndUpdate(crewMember.assignedVehicleId, { driverId: null });
+        }
+      }
+      crewMember.assignedVehicleId = null;
+      await crewMember.save();
+
+      await createAudit(req, 'CREW_VEHICLE_UNASSIGNED', 'User', crewMember._id, {
+        crewName: crewMember.name,
+        role: crewMember.role,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: `${crewMember.name} has been unassigned from vehicle.`,
+        data: crewMember,
+      });
+    }
+
+    const vehicle = await Vehicle.findById(vehicleId);
+    if (!vehicle) {
+      return res.status(404).json({ success: false, message: 'Vehicle not found.' });
+    }
+
+    // If changing from old vehicle, clear old vehicle's link
+    if (crewMember.assignedVehicleId && crewMember.assignedVehicleId.toString() !== vehicleId) {
+      if (crewMember.role === 'assistant') {
+        await Vehicle.findByIdAndUpdate(crewMember.assignedVehicleId, { assistantId: null });
+      } else if (crewMember.role === 'driver') {
+        await Vehicle.findByIdAndUpdate(crewMember.assignedVehicleId, { driverId: null });
+      }
+    }
+
+    // Set on user
+    crewMember.assignedVehicleId = vehicle._id;
+    await crewMember.save();
+
+    // Set on vehicle
+    if (crewMember.role === 'assistant') {
+      // Clear previous assistant's assignedVehicleId if another assistant was assigned
+      if (vehicle.assistantId && vehicle.assistantId.toString() !== crewMember._id.toString()) {
+        await User.findByIdAndUpdate(vehicle.assistantId, { assignedVehicleId: null });
+      }
+      vehicle.assistantId = crewMember._id;
+      await vehicle.save();
+    } else if (crewMember.role === 'driver') {
+      if (vehicle.driverId && vehicle.driverId.toString() !== crewMember._id.toString()) {
+        await User.findByIdAndUpdate(vehicle.driverId, { assignedVehicleId: null });
+      }
+      vehicle.driverId = crewMember._id;
+      await vehicle.save();
+    }
+
+    await createAudit(req, 'CREW_VEHICLE_ASSIGNED', 'User', crewMember._id, {
+      crewName: crewMember.name,
+      role: crewMember.role,
+      vehicleId: vehicle._id,
+      registrationNumber: vehicle.registrationNumber,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `${crewMember.name} (${crewMember.role}) successfully assigned to vehicle ${vehicle.registrationNumber}.`,
+      data: crewMember,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -1156,6 +1272,9 @@ exports.createVehicle = async (req, res) => {
  */
 exports.updateVehicle = async (req, res) => {
   try {
+    const existingVehicle = await Vehicle.findById(req.params.id);
+    if (!existingVehicle) return res.status(404).json({ success: false, message: 'Vehicle not found.' });
+
     const vehicle = await Vehicle.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true,
@@ -1163,7 +1282,25 @@ exports.updateVehicle = async (req, res) => {
       .populate('driverId', 'name phone')
       .populate('assistantId', 'name phone');
 
-    if (!vehicle) return res.status(404).json({ success: false, message: 'Vehicle not found.' });
+    // Sync driver assignedVehicleId
+    if (req.body.driverId !== undefined) {
+      if (existingVehicle.driverId && existingVehicle.driverId.toString() !== req.body.driverId) {
+        await User.findByIdAndUpdate(existingVehicle.driverId, { assignedVehicleId: null });
+      }
+      if (req.body.driverId) {
+        await User.findByIdAndUpdate(req.body.driverId, { assignedVehicleId: vehicle._id });
+      }
+    }
+
+    // Sync assistant assignedVehicleId
+    if (req.body.assistantId !== undefined) {
+      if (existingVehicle.assistantId && existingVehicle.assistantId.toString() !== req.body.assistantId) {
+        await User.findByIdAndUpdate(existingVehicle.assistantId, { assignedVehicleId: null });
+      }
+      if (req.body.assistantId) {
+        await User.findByIdAndUpdate(req.body.assistantId, { assignedVehicleId: vehicle._id });
+      }
+    }
 
     await createAudit(req, 'VEHICLE_UPDATED', 'Vehicle', vehicle._id, req.body);
 
