@@ -1,13 +1,17 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../core/errors/api_exception.dart';
 import '../models/parent_dashboard_model.dart';
 import '../models/student_model.dart';
 import '../services/parent_service.dart';
 import '../services/student_service.dart';
+import '../services/tracking_service.dart';
 
 class ParentDashboardProvider extends ChangeNotifier {
   final ParentService _parentService = ParentService();
   final StudentService _studentService = StudentService();
+  TrackingService? _trackingService;
+  StreamSubscription? _attendanceSub;
 
   ParentDashboardData? _dashboardData;
   int _selectedStudentIndex = 0;
@@ -46,6 +50,30 @@ class ParentDashboardProvider extends ChangeNotifier {
     }
   }
 
+  void handleRealtimeAttendance(Map<String, dynamic> data) {
+    final sId = data['studentId']?.toString();
+    final status = data['status']?.toString();
+    if (sId == null || status == null || _dashboardData == null) return;
+
+    final timestamp = data['timestamp'] != null
+        ? DateTime.tryParse(data['timestamp'].toString()) ?? DateTime.now()
+        : DateTime.now();
+
+    final newBrief = AttendanceBrief(
+      id: data['id'] ?? data['_id'] ?? 'rt_${DateTime.now().millisecondsSinceEpoch}',
+      studentId: sId,
+      status: status,
+      timestamp: timestamp,
+      address: data['address']?.toString(),
+      method: data['method']?.toString() ?? 'qr_code',
+      notes: data['notes']?.toString(),
+    );
+
+    _dashboardData!.todayAttendance.removeWhere((a) => a.studentId == sId);
+    _dashboardData!.todayAttendance.insert(0, newBrief);
+    notifyListeners();
+  }
+
   Future<void> loadDashboard() async {
     _isLoading = true;
     _errorMessage = null;
@@ -56,6 +84,13 @@ class ParentDashboardProvider extends ChangeNotifier {
       if (_selectedStudentIndex >= students.length) {
         _selectedStudentIndex = 0;
       }
+
+      // Connect real-time socket for instant attendance sync
+      final parentId = _dashboardData?.parent.id;
+      final tripId = _dashboardData?.activeTrip?.id;
+      if (parentId != null) {
+        _subscribeToAttendance(tripId ?? '', parentId);
+      }
     } on ApiException catch (e) {
       _errorMessage = e.message;
     } catch (e) {
@@ -64,6 +99,16 @@ class ParentDashboardProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  void _subscribeToAttendance(String tripId, String parentId) {
+    _attendanceSub?.cancel();
+    _trackingService?.disconnectSocket();
+    _trackingService = TrackingService();
+    _trackingService!.connectSocket(tripId: tripId, parentId: parentId);
+    _attendanceSub = _trackingService!.attendanceStream.listen((data) {
+      handleRealtimeAttendance(data);
+    });
   }
 
   Future<bool> reportStudentAbsence(String reason) async {
@@ -77,5 +122,12 @@ class ParentDashboardProvider extends ChangeNotifier {
     } catch (e) {
       return false;
     }
+  }
+
+  @override
+  void dispose() {
+    _attendanceSub?.cancel();
+    _trackingService?.dispose();
+    super.dispose();
   }
 }

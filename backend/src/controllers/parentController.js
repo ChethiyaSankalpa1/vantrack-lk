@@ -59,11 +59,12 @@ exports.getParentDashboard = async (req, res) => {
     if (vehicleIds.length > 0) {
       activeTrip = await Trip.findOne({
         vehicleId: { $in: vehicleIds },
-        status: { $in: ['started', 'scheduled'] },
+        status: { $in: ['started', 'active', 'ready', 'assigned', 'scheduled'] },
       })
         .populate('routeId')
         .populate('vehicleId')
         .populate('driverId', 'name phone avatarUrl')
+        .populate('assistantId', 'name phone avatarUrl')
         .sort({ updatedAt: -1 })
         .lean();
     }
@@ -139,11 +140,12 @@ exports.getLiveTrip = async (req, res) => {
     // Find active trip for any of their vehicles
     const trip = await Trip.findOne({
       vehicleId: { $in: vehicleIds },
-      status: 'started',
+      status: { $in: ['started', 'active'] },
     })
       .populate('routeId')
       .populate('vehicleId')
       .populate('driverId', 'name phone avatarUrl')
+      .populate('assistantId', 'name phone avatarUrl')
       .lean();
 
     if (!trip) {
@@ -199,11 +201,12 @@ exports.getTripHistory = async (req, res) => {
 
     const trips = await Trip.find({
       vehicleId: { $in: vehicleIds },
-      status: { $in: ['completed', 'started'] },
+      status: { $in: ['completed', 'started', 'active'] },
     })
       .populate('routeId', 'name routeCode stops')
       .populate('vehicleId', 'registrationNumber makeModel')
       .populate('driverId', 'name phone avatarUrl')
+      .populate('assistantId', 'name phone avatarUrl')
       .sort({ date: -1 })
       .skip(skip)
       .limit(limit)
@@ -211,7 +214,7 @@ exports.getTripHistory = async (req, res) => {
 
     const total = await Trip.countDocuments({
       vehicleId: { $in: vehicleIds },
-      status: { $in: ['completed', 'started'] },
+      status: { $in: ['completed', 'started', 'active'] },
     });
 
     // Attach attendance for each trip

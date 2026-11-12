@@ -18,6 +18,6 @@ router.get('/', protect, getInvoices);
 router.get('/:id', protect, getInvoiceById);
 router.post('/:id/receipt', protect, authorize('parent'), uploadReceipt);
 router.post('/:id/payhere-checkout', protect, authorize('parent'), initiatePayHere);
-router.put('/:id/verify', protect, authorize('admin', 'driver'), verifyPayment);
+router.put('/:id/verify', protect, authorize('admin'), verifyPayment);
 
 module.exports = router;

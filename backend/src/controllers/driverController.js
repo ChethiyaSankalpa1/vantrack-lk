@@ -5,6 +5,8 @@ const Student = require('../models/Student');
 const Attendance = require('../models/Attendance');
 const Incident = require('../models/Incident');
 const VehicleLocation = require('../models/VehicleLocation');
+const Notification = require('../models/Notification');
+const User = require('../models/User');
 const { broadcastToTripParents } = require('../services/notificationService');
 
 /**
@@ -123,14 +125,52 @@ exports.startTrip = async (req, res) => {
       return res.status(403).json({ success: false, message: 'You are not assigned to this trip' });
     }
 
-    if (trip.status === 'started') {
-      return res.status(400).json({ success: false, message: 'Trip is already in progress' });
+    if (trip.status === 'cancelled') {
+      return res.status(400).json({ success: false, message: 'Cannot start a cancelled trip.' });
+    }
+
+    if (trip.status === 'completed') {
+      return res.status(400).json({ success: false, message: 'Trip is already completed.' });
+    }
+
+    if (trip.status === 'started' || trip.status === 'active') {
+      return res.status(400).json({ success: false, message: 'Trip is already in progress.' });
+    }
+
+    // Prevent duplicate active trips by the same driver
+    const existingActiveTrip = await Trip.findOne({
+      driverId: req.user._id,
+      status: { $in: ['started', 'active'] },
+      _id: { $ne: trip._id },
+    });
+    if (existingActiveTrip) {
+      return res.status(400).json({
+        success: false,
+        message: 'You already have another active trip in progress. Please complete or end it first.',
+      });
     }
 
     trip.status = 'started';
     trip.startedAt = new Date();
     trip.isGpsActive = true;
+    trip.initiatedBy = req.user._id;
     await trip.save();
+
+    // If initial GPS coordinates provided, record them
+    const { latitude, longitude, speed = 0, heading = 0 } = req.body;
+    if (latitude && longitude) {
+      await VehicleLocation.create({
+        vehicleId: trip.vehicleId,
+        tripId: trip._id,
+        driverId: req.user._id,
+        latitude,
+        longitude,
+        speed,
+        heading,
+        accuracy: 5,
+        recordedAt: trip.startedAt,
+      });
+    }
 
     // Update vehicle status
     await Vehicle.findByIdAndUpdate(trip.vehicleId, {
@@ -141,12 +181,15 @@ exports.startTrip = async (req, res) => {
     // Real-time broadcast
     const io = req.app.get('io');
     if (io) {
-      io.emit('trip:started', {
+      const startPayload = {
         tripId: trip._id,
         vehicleId: trip.vehicleId,
         driverId: trip.driverId,
         startedAt: trip.startedAt,
-      });
+      };
+      io.emit('trip:started', startPayload);
+      io.to('admin_fleet').emit('fleet:trip-started', startPayload);
+      io.emit('fleet:trip-started', startPayload);
     }
 
     // Push notification to all parents on this trip
@@ -183,6 +226,10 @@ exports.endTrip = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Not authorized for this trip' });
     }
 
+    if (trip.status !== 'started' && trip.status !== 'active') {
+      return res.status(400).json({ success: false, message: 'Trip is not currently active' });
+    }
+
     trip.status = 'completed';
     trip.endedAt = new Date();
     trip.isGpsActive = false;
@@ -196,11 +243,14 @@ exports.endTrip = async (req, res) => {
 
     const io = req.app.get('io');
     if (io) {
-      io.emit('trip:completed', {
+      const endPayload = {
         tripId: trip._id,
         vehicleId: trip.vehicleId,
         endedAt: trip.endedAt,
-      });
+      };
+      io.emit('trip:completed', endPayload);
+      io.to('admin_fleet').emit('fleet:trip-ended', endPayload);
+      io.emit('fleet:trip-ended', endPayload);
     }
 
     // Push notification to all parents
@@ -240,10 +290,20 @@ exports.updateLocation = async (req, res) => {
     }
 
     const trip = await Trip.findById(tripId);
-    if (!trip || trip.status !== 'started') {
+    if (!trip || (trip.status !== 'started' && trip.status !== 'active')) {
       return res.status(400).json({
         success: false,
         message: 'No active trip found. GPS update rejected.',
+      });
+    }
+
+    // Security check: verify sender is driver or assistant on this trip
+    const isDriver = trip.driverId && trip.driverId.toString() === req.user._id.toString();
+    const isAssistant = trip.assistantId && trip.assistantId.toString() === req.user._id.toString();
+    if (!isDriver && !isAssistant) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not assigned to broadcast location for this trip.',
       });
     }
 
@@ -260,10 +320,10 @@ exports.updateLocation = async (req, res) => {
       recordedAt: new Date(),
     });
 
-    // Real-time broadcast to all parents following this trip
+    // Real-time broadcast to parents and Admin Live Fleet
     const io = req.app.get('io');
     if (io) {
-      io.to(`trip_${tripId}`).emit('trip:location-changed', {
+      const locationPayload = {
         tripId,
         vehicleId: vehicleId || trip.vehicleId,
         latitude,
@@ -272,12 +332,18 @@ exports.updateLocation = async (req, res) => {
         heading,
         accuracy,
         timestamp: location.recordedAt,
-      });
+      };
+      // Parents listening on trip room
+      io.to(`trip_${tripId}`).emit('trip:location-changed', locationPayload);
+      // Admin dashboard listening on admin_fleet room
+      io.to('admin_fleet').emit('fleet:vehicle-moved', locationPayload);
+      // Fallback global emit for admin monitoring
+      io.emit('fleet:vehicle-moved', locationPayload);
     }
 
     res.status(200).json({
       success: true,
-      message: 'Location updated and broadcast to parents',
+      message: 'Location updated and broadcast to parents & admin',
       data: {
         latitude,
         longitude,
@@ -363,6 +429,18 @@ exports.reportIncident = async (req, res) => {
         reportedAt: incident.createdAt,
       });
 
+      // Broadcast to Admin fleet room
+      io.to('admin_fleet').emit('fleet:incident-reported', {
+        incidentId: incident._id,
+        tripId,
+        vehicleId,
+        type,
+        title,
+        description,
+        estimatedDelayMinutes,
+        reportedAt: incident.createdAt,
+      });
+
       // Broadcast in-app & push notification to all affected parents
       broadcastToTripParents({
         tripId,
@@ -375,6 +453,22 @@ exports.reportIncident = async (req, res) => {
         },
         io,
       }).catch((e) => console.error(e));
+
+      // Create in-app notifications for Admin users
+      try {
+        const admins = await User.find({ role: 'admin' }).select('_id');
+        for (const admin of admins) {
+          await Notification.create({
+            userId: admin._id,
+            title: `⚠️ Incident Reported: ${title}`,
+            message: `${description} (${estimatedDelayMinutes}m delay)`,
+            type: type === 'breakdown' ? 'incident_alert' : 'incident_delay',
+            data: { tripId: tripId?.toString(), incidentId: incident._id.toString() },
+          });
+        }
+      } catch (notifErr) {
+        console.error('[Admin Notification Error]', notifErr);
+      }
     }
 
     res.status(201).json({

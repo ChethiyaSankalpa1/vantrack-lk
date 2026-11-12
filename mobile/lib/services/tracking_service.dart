@@ -131,6 +131,12 @@ class TrackingService {
         }
       });
     }
+
+    _socket!.on('trip:attendance-update', (data) {
+      if (data is Map<String, dynamic>) {
+        _attendanceController.add(data);
+      }
+    });
   }
 
   void disconnectSocket() {

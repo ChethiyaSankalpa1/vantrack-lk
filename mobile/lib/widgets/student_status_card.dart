@@ -252,14 +252,18 @@ class StudentStatusCard extends StatelessWidget {
       );
     }
 
-    if (activeTrip?.status == 'started') {
+    final isTripActive = activeTrip?.status == 'started' || activeTrip?.status == 'active';
+    if (isTripActive) {
+      final isAfternoon = activeTrip?.tripType == 'afternoon_drop';
       return (
         color: AppColors.vanAmber,
         icon: Icons.access_time_filled_rounded,
         shortLabel: 'Van En Route',
-        headline: 'Morning Van Has Started Trip',
-        subtext: 'Driver is servicing route stops. Estimated pickup soon.',
-        timeInfo: 'Scheduled: ${student.pickupLocation.scheduledTime}',
+        headline: isAfternoon ? 'Afternoon Return Trip In Progress' : 'Morning Van Has Started Trip',
+        subtext: 'Driver is servicing route stops. Estimated arrival soon.',
+        timeInfo: isAfternoon
+            ? 'Scheduled: ${student.dropoffLocation.scheduledTime}'
+            : 'Scheduled: ${student.pickupLocation.scheduledTime}',
       );
     }
 

@@ -376,6 +376,12 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
     final driverName = driver?['name'] ?? 'Driver';
     final driverPhone = driver?['phone'] ?? '+94 77 123 4567';
 
+    final assistant = vehicle?['assistantId'] is Map
+        ? vehicle!['assistantId'] as Map<String, dynamic>
+        : (vehicle?['assistant'] is Map ? vehicle!['assistant'] as Map<String, dynamic> : null);
+    final assistantName = assistant?['name'];
+    final assistantPhone = assistant?['phone'];
+
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -496,6 +502,18 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
                   icon: const Icon(Icons.phone_rounded, size: 20),
                   onPressed: () => _showContactDialog(driverName, driverPhone),
                 ),
+                if (assistantName != null) ...[
+                  const SizedBox(width: 8),
+                  IconButton(
+                    tooltip: 'Call Assistant ($assistantName)',
+                    style: IconButton.styleFrom(
+                      backgroundColor: AppColors.info.withValues(alpha: 0.15),
+                      foregroundColor: AppColors.info,
+                    ),
+                    icon: const Icon(Icons.support_agent_rounded, size: 20),
+                    onPressed: () => _showContactDialog('Van Assistant ($assistantName)', assistantPhone ?? '0754567890'),
+                  ),
+                ],
               ],
             ),
             const SizedBox(height: 14),

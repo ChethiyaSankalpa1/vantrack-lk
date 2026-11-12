@@ -64,8 +64,14 @@ class DriverProvider extends ChangeNotifier {
 
       if (activeTrip?.isActive == true) {
         _tripState = TripState.active;
+        if (!_isGpsActive) {
+          _startGpsTracking();
+        }
       } else {
         _tripState = TripState.idle;
+        if (_isGpsActive) {
+          _stopGpsTracking();
+        }
       }
     } on ApiException catch (e) {
       _errorMessage = e.message;
@@ -79,9 +85,32 @@ class DriverProvider extends ChangeNotifier {
 
   Future<bool> startTrip(String tripId) async {
     _tripState = TripState.starting;
+    _errorMessage = null;
     notifyListeners();
 
     try {
+      // 1. Verify location service is enabled
+      final isServiceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!isServiceEnabled) {
+        _errorMessage = 'GPS / Location is turned off. Please enable device location.';
+        _tripState = TripState.idle;
+        notifyListeners();
+        return false;
+      }
+
+      // 2. Verify / request location permissions
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        _errorMessage = 'Location permission is required to broadcast live GPS tracking.';
+        _tripState = TripState.idle;
+        notifyListeners();
+        return false;
+      }
+
       await _service.startTrip(tripId);
       await loadDashboard();
       _startGpsTracking();
@@ -90,6 +119,11 @@ class DriverProvider extends ChangeNotifier {
       return true;
     } on ApiException catch (e) {
       _errorMessage = e.message;
+      _tripState = TripState.idle;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = e.toString();
       _tripState = TripState.idle;
       notifyListeners();
       return false;
@@ -119,9 +153,13 @@ class DriverProvider extends ChangeNotifier {
 
   // GPS Tracking ─────────────────────────────────────────────
   void _startGpsTracking() {
+    if (_isGpsActive && _gpsTimer != null) return;
     _isGpsActive = true;
     _gpsUpdateCount = 0;
-    // Send location every 15 seconds
+    // Push immediate initial location right away
+    _pushLocation();
+    // Then schedule updates every 15 seconds
+    _gpsTimer?.cancel();
     _gpsTimer = Timer.periodic(const Duration(seconds: 15), (_) => _pushLocation());
     notifyListeners();
   }
@@ -168,6 +206,19 @@ class DriverProvider extends ChangeNotifier {
     } catch (_) {
       // Silently handle location errors — UI will show stale warning
     }
+  }
+
+  void updateStudentAttendance(String studentId, String status) {
+    if (status == 'boarded') {
+      _boardedStudentIds.add(studentId);
+      _droppedStudentIds.remove(studentId);
+    } else if (status == 'dropped_off') {
+      _droppedStudentIds.add(studentId);
+    } else if (status == 'absent') {
+      _boardedStudentIds.remove(studentId);
+      _droppedStudentIds.remove(studentId);
+    }
+    notifyListeners();
   }
 
   // Attendance ─────────────────────────────────────────────

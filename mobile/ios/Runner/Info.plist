@@ -26,6 +26,12 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>VanTrack LK requires location access to broadcast and view school van routes during active trips.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>VanTrack LK requires continuous location updates for live tracking during school van journeys.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>VanTrack LK requires location access to keep parents updated about school van arrival times.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

@@ -213,12 +213,13 @@ exports.reportAbsence = async (req, res) => {
     // Check if there is an active/scheduled trip today
     const trip = await Trip.findOne({
       vehicleId: student.assignedVehicleId,
-      status: { $in: ['scheduled', 'started'] },
+      status: { $in: ['scheduled', 'assigned', 'ready', 'started', 'active'] },
     });
 
+    let attendance = null;
     if (trip) {
       // Record attendance as absent
-      await Attendance.findOneAndUpdate(
+      attendance = await Attendance.findOneAndUpdate(
         { studentId: student._id, tripId: trip._id, status: 'absent' },
         {
           studentId: student._id,
@@ -231,11 +232,49 @@ exports.reportAbsence = async (req, res) => {
         },
         { upsert: true, new: true }
       );
+
+      // Real-time broadcast to Driver & Assistant
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`trip_${trip._id}`).emit('trip:student-absent', {
+          studentId: student._id,
+          studentName: student.name,
+          reason,
+        });
+        io.emit('trip:attendance-update', {
+          tripId: trip._id,
+          studentId: student._id,
+          status: 'absent',
+          timestamp: attendance.timestamp,
+        });
+      }
+
+      // In-app notifications to driver and assistant
+      const Notification = require('../models/Notification');
+      if (trip.driverId) {
+        await Notification.create({
+          userId: trip.driverId,
+          title: '⚠️ Student Absent Notice',
+          message: `${student.name} will not use the van today (${reason}).`,
+          type: 'attendance_alert',
+          data: { studentId: student._id.toString(), tripId: trip._id.toString() },
+        });
+      }
+      if (trip.assistantId) {
+        await Notification.create({
+          userId: trip.assistantId,
+          title: '⚠️ Student Absent Notice',
+          message: `${student.name} will not use the van today (${reason}).`,
+          type: 'attendance_alert',
+          data: { studentId: student._id.toString(), tripId: trip._id.toString() },
+        });
+      }
     }
 
     res.status(200).json({
       success: true,
-      message: `Absence notice registered for ${student.name}. The driver has been notified.`,
+      message: `Absence notice registered for ${student.name}. The driver and assistant have been notified.`,
+      data: attendance,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

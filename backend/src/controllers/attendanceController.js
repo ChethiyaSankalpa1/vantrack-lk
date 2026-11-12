@@ -89,15 +89,30 @@ exports.recordAttendance = async (req, res) => {
       });
     }
 
-    // Real-time notification to parent
+    // Real-time notification to parent & driver on this trip
     const io = req.app.get('io');
-    if (io && student.parentId) {
-      io.emit(`parent:${student.parentId._id}:attendance`, {
+    if (io) {
+      if (student.parentId) {
+        io.emit(`parent:${student.parentId._id}:attendance`, {
+          studentId,
+          studentName: student.name,
+          status,
+          timestamp: attendance.timestamp,
+          address: address || '',
+        });
+      }
+      // Broadcast to trip room so Driver & Assistant screens update live
+      io.to(`trip_${tripId}`).emit('trip:attendance-update', {
+        tripId,
         studentId,
-        studentName: student.name,
         status,
         timestamp: attendance.timestamp,
-        address: address || '',
+      });
+      io.emit('trip:attendance-update', {
+        tripId,
+        studentId,
+        status,
+        timestamp: attendance.timestamp,
       });
     }
 

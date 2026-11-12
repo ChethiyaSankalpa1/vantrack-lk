@@ -251,48 +251,81 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
   }
 
   Widget _buildVehicleHeader(Map<String, dynamic> vehicle) {
+    final assistant = vehicle['assistantId'] is Map ? vehicle['assistantId'] as Map<String, dynamic> : null;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       color: AppColors.primary,
-      child: Row(
+      child: Column(
         children: [
-          const Icon(Icons.directions_bus_rounded, color: Colors.white70, size: 20),
-          const SizedBox(width: 8),
-          Text(
-            vehicle['registrationNumber'] ?? 'WP NB-XXXX',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            vehicle['makeModel'] ?? 'Toyota HiAce KDH',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.7),
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: _getVehicleStatusColor(vehicle['status']).withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: _getVehicleStatusColor(vehicle['status'])),
-            ),
-            child: Text(
-              (vehicle['status'] ?? 'active').toString().replaceAll('_', ' ').toUpperCase(),
-              style: TextStyle(
-                color: _getVehicleStatusColor(vehicle['status']),
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
+          Row(
+            children: [
+              const Icon(Icons.directions_bus_rounded, color: Colors.white70, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                vehicle['registrationNumber'] ?? 'WP NB-XXXX',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1,
+                ),
               ),
-            ),
+              const SizedBox(width: 8),
+              Text(
+                vehicle['makeModel'] ?? 'Toyota HiAce KDH',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.7),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: _getVehicleStatusColor(vehicle['status']).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: _getVehicleStatusColor(vehicle['status'])),
+                ),
+                child: Text(
+                  (vehicle['status'] ?? 'active').toString().replaceAll('_', ' ').toUpperCase(),
+                  style: TextStyle(
+                    color: _getVehicleStatusColor(vehicle['status']),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
           ),
+          if (assistant != null) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.person_pin_circle_rounded, color: AppColors.accent, size: 14),
+                const SizedBox(width: 6),
+                Text(
+                  'Van Assistant: ${assistant['name'] ?? 'Assigned'}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (assistant['phone'] != null) ...[
+                  const SizedBox(width: 6),
+                  Text(
+                    '(${assistant['phone']})',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
         ],
       ),
     );

@@ -93,6 +93,14 @@ class DriverProfileScreen extends StatelessWidget {
                     _buildProfileRow(Icons.commute_rounded, 'Make & Model', vehicle['makeModel'] ?? 'Toyota HiAce KDH'),
                     const SizedBox(height: 10),
                     _buildProfileRow(Icons.event_seat_rounded, 'Seating Capacity', '${vehicle['seatingCapacity'] ?? 16} Students'),
+                    if (vehicle['assistantId'] != null) ...[
+                      const SizedBox(height: 10),
+                      _buildProfileRow(
+                        Icons.person_pin_circle_rounded,
+                        'Van Assistant',
+                        '${vehicle['assistantId'] is Map ? (vehicle['assistantId']['name'] ?? 'Assigned') : 'Assigned'}${vehicle['assistantId'] is Map && vehicle['assistantId']['phone'] != null ? ' (${vehicle['assistantId']['phone']})' : ''}',
+                      ),
+                    ],
                   ],
                 ],
               ),

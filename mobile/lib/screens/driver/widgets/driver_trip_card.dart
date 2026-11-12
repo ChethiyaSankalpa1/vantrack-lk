@@ -228,6 +228,21 @@ class DriverTripCard extends StatelessWidget {
           color = AppColors.error;
           icon = Icons.cancel_rounded;
           break;
+        case 'interrupted':
+          label = 'INTERRUPTED';
+          color = AppColors.warning;
+          icon = Icons.warning_amber_rounded;
+          break;
+        case 'ready':
+          label = 'READY';
+          color = AppColors.accent;
+          icon = Icons.check_circle_outline_rounded;
+          break;
+        case 'assigned':
+          label = 'ASSIGNED';
+          color = AppColors.primary;
+          icon = Icons.assignment_turned_in_rounded;
+          break;
         default:
           label = 'SCHEDULED';
           color = AppColors.info;

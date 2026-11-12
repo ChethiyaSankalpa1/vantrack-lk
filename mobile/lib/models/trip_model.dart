@@ -64,7 +64,9 @@ class TripModel {
     }
   }
 
-  bool get isActive => status == 'started';
-  bool get isScheduled => status == 'scheduled';
+  bool get isActive => status == 'started' || status == 'active';
+  bool get isScheduled => status == 'scheduled' || status == 'assigned' || status == 'ready';
   bool get isCompleted => status == 'completed';
+  bool get isCancelled => status == 'cancelled';
+  bool get isInterrupted => status == 'interrupted';
 }

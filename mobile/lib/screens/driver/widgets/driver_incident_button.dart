@@ -66,6 +66,7 @@ class _IncidentReportSheetState extends State<_IncidentReportSheet> {
     _IncidentType('traffic_delay', '🚦 Traffic Delay', AppColors.warning),
     _IncidentType('breakdown', '🔧 Vehicle Breakdown', AppColors.error),
     _IncidentType('route_change', '🗺️ Route Change', AppColors.info),
+    _IncidentType('accident', '🚨 Emergency / Accident', AppColors.error),
     _IncidentType('other', '📋 Other', AppColors.textSecondary),
   ];
 
