@@ -25,8 +25,11 @@ export const SocketProvider = ({ children }) => {
 
     const socket = io(SOCKET_SERVER_URL, {
       transports: ['websocket', 'polling'],
-      reconnectionAttempts: 10,
-      reconnectionDelay: 2000,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 2500,
+      reconnectionDelayMax: 10000,
+      timeout: 30000,
     });
 
     socketRef.current = socket;
