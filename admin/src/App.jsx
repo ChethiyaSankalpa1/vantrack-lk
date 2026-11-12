@@ -17,6 +17,7 @@ import { DriverListPage } from './pages/fleet/DriverListPage';
 import { AttendancePage } from './pages/attendance/AttendancePage';
 import { InvoiceListPage } from './pages/billing/InvoiceListPage';
 import { IncidentLogPage } from './pages/incidents/IncidentLogPage';
+import { RouteListPage } from './pages/routes/RouteListPage';
 import { ReportsAnalyticsPage } from './pages/reports/ReportsAnalyticsPage';
 import { AuditLogPage } from './pages/audit/AuditLogPage';
 
@@ -36,6 +37,7 @@ export function App() {
                 <Route path="/tracking" element={<LiveTrackingPage />} />
                 <Route path="/trips" element={<TripListPage />} />
                 <Route path="/trips/:id" element={<TripDetailsPage />} />
+                <Route path="/routes" element={<RouteListPage />} />
                 <Route path="/students" element={<StudentListPage />} />
                 <Route path="/parents" element={<ParentListPage />} />
                 <Route path="/vehicles" element={<VehicleListPage />} />

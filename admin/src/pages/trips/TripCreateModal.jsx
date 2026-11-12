@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, CalendarCheck, Bus, User, MapPin, Users, AlertCircle } from 'lucide-react';
+import { X, CalendarCheck, Bus, User, MapPin, Users, AlertCircle, Plus, Navigation } from 'lucide-react';
 import client from '../../api/client';
+import { RouteFormModal } from '../routes/RouteFormModal';
 
 export const TripCreateModal = ({ isOpen, onClose, onCreated }) => {
   const [routes, setRoutes] = useState([]);
@@ -24,6 +25,13 @@ export const TripCreateModal = ({ isOpen, onClose, onCreated }) => {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [error, setError] = useState('');
+  const [isAddRouteModalOpen, setIsAddRouteModalOpen] = useState(false);
+
+  const handleRouteCreated = (newRoute) => {
+    setRoutes((prev) => [newRoute, ...prev.filter((r) => r._id !== newRoute._id)]);
+    setFormData((prev) => ({ ...prev, routeId: newRoute._id }));
+    setIsAddRouteModalOpen(false);
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -202,7 +210,17 @@ export const TripCreateModal = ({ isOpen, onClose, onCreated }) => {
             {/* Route & Vehicle */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="mb-1 block font-semibold text-slate-300">Transport Route *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-semibold text-slate-300">Transport Route *</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddRouteModalOpen(true)}
+                    className="flex items-center gap-1 text-[11px] font-bold text-amber-400 hover:text-amber-300 hover:underline"
+                  >
+                    <Plus className="h-3 w-3" />
+                    <span>+ Add New Route</span>
+                  </button>
+                </div>
                 <select
                   value={formData.routeId}
                   onChange={(e) => setFormData({ ...formData, routeId: e.target.value })}
@@ -212,10 +230,32 @@ export const TripCreateModal = ({ isOpen, onClose, onCreated }) => {
                   <option value="">-- Choose Route --</option>
                   {routes.map((r) => (
                     <option key={r._id} value={r._id}>
-                      {r.name} ({r.routeCode}) - {r.stops?.length || 0} stops
+                      {r.name} ({r.routeCode}) {r.province ? `• ${r.province}` : ''} - {r.stops?.length || 0} stops
                     </option>
                   ))}
                 </select>
+
+                {/* Selected Route Preview Details */}
+                {(() => {
+                  const selectedRoute = routes.find((r) => r._id === formData.routeId);
+                  if (!selectedRoute) return null;
+                  return (
+                    <div className="mt-2 rounded-lg border border-amber-500/20 bg-amber-500/10 p-2.5 text-xs text-slate-300">
+                      <div className="flex items-center justify-between font-bold text-amber-300">
+                        <span>{selectedRoute.name} ({selectedRoute.routeCode})</span>
+                        <span className="text-[10px] text-slate-400">
+                          {selectedRoute.province || 'Western'} • {selectedRoute.district || 'Colombo'}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-slate-400">
+                        <span>📍 {selectedRoute.stops?.length || 0} stops</span>
+                        <span>⚡ {selectedRoute.distanceKm || 15} km</span>
+                        <span>⏱ ~{selectedRoute.estimatedDurationMinutes || 45} mins</span>
+                        {selectedRoute.destinationSchool && <span>🏫 {selectedRoute.destinationSchool}</span>}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div>
@@ -336,6 +376,13 @@ export const TripCreateModal = ({ isOpen, onClose, onCreated }) => {
           </form>
         )}
       </div>
+
+      {/* Quick Add Route Modal */}
+      <RouteFormModal
+        isOpen={isAddRouteModalOpen}
+        onClose={() => setIsAddRouteModalOpen(false)}
+        onSaved={handleRouteCreated}
+      />
     </div>
   );
 };

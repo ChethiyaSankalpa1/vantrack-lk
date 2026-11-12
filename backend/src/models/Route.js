@@ -35,6 +35,7 @@ const stopSchema = new mongoose.Schema({
   landmark: {
     type: String,
     default: '',
+    trim: true,
   },
 });
 
@@ -51,18 +52,51 @@ const routeSchema = new mongoose.Schema(
       trim: true,
       uppercase: true,
     },
+    province: {
+      type: String,
+      default: 'Western',
+      trim: true,
+    },
+    district: {
+      type: String,
+      default: 'Colombo',
+      trim: true,
+    },
+    town: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    destinationSchool: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    description: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     tripType: {
       type: String,
       enum: ['morning', 'afternoon', 'both'],
       default: 'both',
     },
+    estimatedDurationMinutes: {
+      type: Number,
+      default: 45,
+    },
+    distanceKm: {
+      type: Number,
+      default: 15,
+    },
     startLocation: {
-      name: { type: String, default: 'Maharagama Junction' },
+      name: { type: String, default: 'Starting Terminal' },
       latitude: { type: Number, required: true },
       longitude: { type: Number, required: true },
     },
     endLocation: {
-      name: { type: String, default: 'Colombo 07 School Zone' },
+      name: { type: String, default: 'Destination School' },
       latitude: { type: Number, required: true },
       longitude: { type: Number, required: true },
     },
@@ -80,5 +114,9 @@ const routeSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+// Index for fast searching across name, route code, province and district
+routeSchema.index({ name: 'text', routeCode: 'text', destinationSchool: 'text' });
+routeSchema.index({ province: 1, district: 1, isActive: 1 });
 
 module.exports = mongoose.model('Route', routeSchema);
