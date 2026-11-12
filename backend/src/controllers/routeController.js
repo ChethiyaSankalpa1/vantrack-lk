@@ -406,7 +406,7 @@ exports.toggleRouteStatus = async (req, res) => {
 };
 
 /**
- * @desc    Delete route with safety checks & force delete support
+ * @desc    Delete route cleanly with automatic cleanup of scheduled/pending trips
  * @route   DELETE /api/routes/:id
  * @access  Private (Admin)
  */
@@ -426,27 +426,16 @@ exports.deleteRoute = async (req, res) => {
     if (activeTransitTrip) {
       return res.status(400).json({
         success: false,
-        message: `Cannot delete route '${route.name}' because vehicle is actively in transit on this trip right now. Please complete or end the active trip first.`,
+        message: `Cannot delete route '${route.name}' because vehicle is actively in transit on this trip right now. Please complete or cancel the active trip first.`,
       });
     }
 
-    // 2. Check scheduled / pending trips
-    const { force } = req.query;
+    // 2. Automatically clean up scheduled / pending / ready trips referencing this route
     const scheduledTripsCount = await Trip.countDocuments({
       routeId: route._id,
       status: { $in: ['scheduled', 'assigned', 'ready'] },
     });
 
-    if (scheduledTripsCount > 0 && force !== 'true') {
-      return res.status(400).json({
-        success: false,
-        hasTrips: true,
-        tripsCount: scheduledTripsCount,
-        message: `Route '${route.name}' is assigned to ${scheduledTripsCount} scheduled trip(s). Would you like to force delete it (this will clean up the scheduled trips)?`,
-      });
-    }
-
-    // 3. Clean up scheduled trips if force=true
     if (scheduledTripsCount > 0) {
       await Trip.deleteMany({
         routeId: route._id,
@@ -454,22 +443,24 @@ exports.deleteRoute = async (req, res) => {
       });
     }
 
-    // 4. Detach route reference from students
+    // 3. Detach route references from students and vehicles
     await Student.updateMany({ assignedRouteId: route._id }, { assignedRouteId: null });
+    await Vehicle.updateMany({ assignedRouteId: route._id }, { assignedRouteId: null });
 
-    // 5. Delete the route
+    // 4. Delete the route
     await Route.findByIdAndDelete(route._id);
 
     await createAudit(req, 'ROUTE_DELETED', 'Route', route._id, {
       name: route.name,
       routeCode: route.routeCode,
       cleanedTripsCount: scheduledTripsCount,
-      forced: force === 'true',
     });
 
     res.status(200).json({
       success: true,
-      message: `Route '${route.name}' (${route.routeCode}) deleted successfully.`,
+      message: `Route '${route.name}' (${route.routeCode}) deleted successfully.${
+        scheduledTripsCount > 0 ? ` Cleaned up ${scheduledTripsCount} scheduled trip(s).` : ''
+      }`,
     });
   } catch (error) {
     console.error('[Delete Route Error]', error);

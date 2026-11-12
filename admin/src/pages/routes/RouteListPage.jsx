@@ -93,28 +93,11 @@ export const RouteListPage = () => {
     try {
       const res = await client.delete(`/routes/${route._id}`);
       if (res.data.success) {
-        alert(res.data.message);
+        alert(res.data.message || `Route '${route.name}' deleted successfully.`);
         fetchRoutes();
       }
     } catch (err) {
-      if (err.response?.data?.hasTrips) {
-        const force = window.confirm(
-          `This route is currently assigned to ${err.response.data.tripsCount} scheduled trip(s).\n\nDo you want to FORCE DELETE this route and remove those scheduled trips?`
-        );
-        if (force) {
-          try {
-            const forceRes = await client.delete(`/routes/${route._id}?force=true`);
-            if (forceRes.data.success) {
-              alert(forceRes.data.message);
-              fetchRoutes();
-            }
-          } catch (fErr) {
-            alert(fErr.response?.data?.message || 'Failed to force delete route.');
-          }
-        }
-      } else {
-        alert(err.response?.data?.message || err.message || 'Failed to delete route.');
-      }
+      alert(err.response?.data?.message || err.message || 'Failed to delete route.');
     }
   };
 
