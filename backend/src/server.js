@@ -117,6 +117,16 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`[VanTrack LK] Server running in ${process.env.NODE_ENV || 'development'} mode on http://0.0.0.0:${PORT}`);
+
+  // PayHere startup diagnostic (mirrors invoiceController logic)
+  const payhereMode = (process.env.PAYHERE_MODE || 'sandbox').toLowerCase();
+  const merchantId = process.env.PAYHERE_MERCHANT_ID || '';
+  const looksLikeSandboxId = /^12[1-3]\d{4,}$/.test(String(merchantId));
+  const effectiveMode = (payhereMode === 'live' && !looksLikeSandboxId) ? 'LIVE' : 'SANDBOX';
+  console.log(`[PayHere] Effective Mode: ${effectiveMode} | PAYHERE_MODE env: ${payhereMode} | Merchant ID: ${merchantId || 'NOT SET'} | Currency: ${process.env.PAYHERE_CURRENCY || 'LKR'}`);
+  if (effectiveMode === 'SANDBOX') {
+    console.log('[PayHere] ⚠️  SANDBOX mode active — only test card payments work. For real card payments, set PAYHERE_MODE=live with a LIVE merchant ID+secret on Render.');
+  }
 });
 
 module.exports = { app, server, io };

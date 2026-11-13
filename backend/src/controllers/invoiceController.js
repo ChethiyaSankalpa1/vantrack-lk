@@ -140,14 +140,65 @@ exports.uploadReceipt = async (req, res) => {
 };
 
 /**
+ * Validate that PayHere credentials are configured.
+ * Returns an error message string if misconfigured, or null if OK.
+ */
+const validatePayHereConfig = () => {
+  const merchantId = process.env.PAYHERE_MERCHANT_ID;
+  const merchantSecret = process.env.PAYHERE_SECRET;
+
+  if (!merchantId || !merchantSecret) {
+    return (
+      'PayHere is not configured on the server. ' +
+      'Please set PAYHERE_MERCHANT_ID and PAYHERE_SECRET environment variables on Render.'
+    );
+  }
+  // Reject the legacy fake fallback values explicitly
+  if (merchantId === '1234567' || merchantSecret === 'secret123') {
+    return (
+      'PayHere credentials are missing on the server. ' +
+      'Please set real PAYHERE_MERCHANT_ID and PAYHERE_SECRET on Render (not the placeholder defaults).'
+    );
+  }
+  return null;
+};
+
+/**
  * Build PayHere checkout parameters for an invoice (shared helper).
  */
 const buildPayHereParams = (invoice) => {
-  const merchantId = process.env.PAYHERE_MERCHANT_ID || '1234567';
-  const merchantSecret = process.env.PAYHERE_SECRET || 'secret123';
-  const currency = 'LKR';
+  const merchantId = process.env.PAYHERE_MERCHANT_ID;
+  const merchantSecret = process.env.PAYHERE_SECRET;
+  const currency = process.env.PAYHERE_CURRENCY || 'LKR';
   const amountFormatted = parseFloat(invoice.amount).toFixed(2);
   const baseUrl = process.env.APP_BASE_URL || 'https://vantrack-lk.onrender.com';
+
+  // Determine sandbox/live mode.
+  // SAFE DEFAULT: sandbox mode is used unless PAYHERE_MODE=live is explicitly set.
+  // This prevents accidentally sending sandbox credentials to the live PayHere URL
+  // (which causes the "can not find a business" error).
+  const payhereMode = (process.env.PAYHERE_MODE || 'sandbox').toLowerCase();
+  let isSandbox = payhereMode !== 'live';
+
+  // Auto-detect sandbox merchant IDs: PayHere sandbox/test merchants typically
+  // have IDs in the 121xxxx–123xxxx range. If a sandbox-looking merchant ID is
+  // used with "live" mode, force sandbox to avoid the "can not find a business" error.
+  const merchantIdStr = String(merchantId);
+  const looksLikeSandboxId = /^12[1-3]\d{4,}$/.test(merchantIdStr);
+  if (!isSandbox && looksLikeSandboxId) {
+    console.warn(
+      `[PayHere] WARNING: PAYHERE_MODE=live but merchant ID "${merchantId}" looks like a sandbox ID. ` +
+      `Forcing sandbox mode. Set a real LIVE merchant ID to accept real card payments.`
+    );
+    isSandbox = true;
+  }
+
+  if (isSandbox) {
+    console.log(
+      `[PayHere] Checkout → SANDBOX mode (merchant: ${merchantId}). ` +
+      `Use PayHere test cards for payment. For real card payments, set PAYHERE_MODE=live with live credentials.`
+    );
+  }
 
   // PayHere MD5 Checksum: MD5(merchant_id + order_id + amount + currency + strtoupper(MD5(merchant_secret)))
   const hashedSecret = crypto.createHash('md5').update(merchantSecret).digest('hex').toUpperCase();
@@ -162,7 +213,7 @@ const buildPayHereParams = (invoice) => {
   const lastName = parentName.slice(1).join(' ') || 'Customer';
 
   return {
-    sandbox: process.env.NODE_ENV !== 'production',
+    sandbox: isSandbox,
     merchant_id: merchantId,
     return_url: `${baseUrl}/api/invoices/payhere/return`,
     cancel_url: `${baseUrl}/api/invoices/payhere/cancel`,
@@ -202,6 +253,12 @@ exports.initiatePayHere = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invoice is already paid' });
     }
 
+    const configError = validatePayHereConfig();
+    if (configError) {
+      console.error('[PayHere]', configError);
+      return res.status(503).json({ success: false, message: configError });
+    }
+
     const checkoutParams = buildPayHereParams(invoice);
 
     res.status(200).json({
@@ -234,6 +291,18 @@ exports.renderPayHereCheckoutPage = async (req, res) => {
         <html><body style="font-family:Arial,sans-serif;text-align:center;padding:40px;">
           <h2 style="color:#16a34a;">This invoice has already been paid.</h2>
           <p>Invoice ${invoice.invoiceNumber} is settled. You can close this window.</p>
+        </body></html>
+      `);
+    }
+
+    const configError = validatePayHereConfig();
+    if (configError) {
+      console.error('[PayHere]', configError);
+      return res.status(503).send(`
+        <html><body style="font-family:Arial,sans-serif;text-align:center;padding:40px;background:#fff7ed;">
+          <h2 style="color:#c2410c;">Payment Service Not Configured</h2>
+          <p>${configError}</p>
+          <p style="font-size:12px;color:#9a3412;">Please contact the VanTrack administrator.</p>
         </body></html>
       `);
     }
@@ -375,7 +444,7 @@ exports.payHereNotify = async (req, res) => {
       custom_1,
     } = req.body;
 
-    const merchantSecret = process.env.PAYHERE_SECRET || 'secret123';
+    const merchantSecret = process.env.PAYHERE_SECRET;
     const hashedSecret = crypto.createHash('md5').update(merchantSecret).digest('hex').toUpperCase();
 
     // Verify callback authenticity
