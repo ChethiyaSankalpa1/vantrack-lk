@@ -10,12 +10,16 @@ const {
   verifyPayment,
   getCashInvoicesForDriver,
   confirmCashPayment,
+  seedTestUnpaidInvoices,
 } = require('../controllers/invoiceController');
 
 const bankDepositController = require('../controllers/bankDepositController');
 
 // PayHere Webhook (Public, verified with MD5 signature)
 router.post('/payhere/notify', payHereNotify);
+
+// Seed due unpaid test invoice for parent testing
+router.post('/seed-due', protect, seedTestUnpaidInvoices);
 
 // Driver & Assistant Cash Collection endpoints
 router.get('/driver/cash-pending', protect, authorize('driver', 'assistant'), getCashInvoicesForDriver);

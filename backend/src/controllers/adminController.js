@@ -344,10 +344,37 @@ exports.createTrip = async (req, res) => {
       studentCount: finalStudentIds.length,
     });
 
-    // Notify connected admin fleet room
+    // Notify connected admin fleet room & Driver/Assistant Sockets
     const io = req.app.get('io');
     if (io) {
       io.to('admin_fleet').emit('fleet:trip-created', populatedTrip);
+      io.emit('trip:created', populatedTrip);
+      io.emit('trip:updated', populatedTrip);
+      if (driverId) io.to(`user_${driverId}`).emit('trip:update', populatedTrip);
+      if (assistantId) io.to(`user_${assistantId}`).emit('trip:update', populatedTrip);
+    }
+
+    // Send Push Notification to Driver & Assistant
+    if (driverId) {
+      sendNotification({
+        userId: driverId,
+        title: '🚍 New Trip Assigned by Admin',
+        message: `Trip (${tripType.replace('_', ' ')}) has been scheduled for your vehicle. Tap to view route & student roster.`,
+        type: 'trip_start',
+        data: { tripId: trip._id.toString() },
+        io,
+      });
+    }
+
+    if (assistantId) {
+      sendNotification({
+        userId: assistantId,
+        title: '🚍 New Trip Assigned by Admin',
+        message: `Trip (${tripType.replace('_', ' ')}) has been scheduled for your vehicle. Tap to view student roster & QR scanner.`,
+        type: 'trip_start',
+        data: { tripId: trip._id.toString() },
+        io,
+      });
     }
 
     res.status(201).json({
@@ -577,6 +604,33 @@ exports.startTripOverride = async (req, res) => {
         startedAt: trip.startedAt,
       });
       io.to('admin_fleet').emit('fleet:trip-started', { tripId: trip._id });
+      io.emit('trip:started', { tripId: trip._id });
+      io.emit('trip:created', trip);
+      io.emit('trip:updated', trip);
+      if (trip.driverId) io.to(`user_${trip.driverId}`).emit('trip:update', trip);
+      if (trip.assistantId) io.to(`user_${trip.assistantId}`).emit('trip:update', trip);
+    }
+
+    if (trip.driverId) {
+      sendNotification({
+        userId: trip.driverId,
+        title: '🚍 Trip Started by Admin',
+        message: `Admin has started the trip (${trip.tripType.replace('_', ' ')}). GPS tracking is active.`,
+        type: 'trip_start',
+        data: { tripId: trip._id.toString() },
+        io,
+      });
+    }
+
+    if (trip.assistantId) {
+      sendNotification({
+        userId: trip.assistantId,
+        title: '🚍 Trip Started by Admin',
+        message: `Admin has started the trip (${trip.tripType.replace('_', ' ')}). Student QR scanner is active.`,
+        type: 'trip_start',
+        data: { tripId: trip._id.toString() },
+        io,
+      });
     }
 
     broadcastToTripParents({

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_colors.dart';
@@ -16,12 +17,25 @@ class AssistantDashboardScreen extends StatefulWidget {
 }
 
 class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
+  Timer? _autoRefreshTimer;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<DriverProvider>().loadDashboard();
     });
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+      if (mounted) {
+        context.read<DriverProvider>().loadDashboard();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    super.dispose();
   }
 
   @override

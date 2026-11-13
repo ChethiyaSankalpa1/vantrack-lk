@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_colors.dart';
@@ -21,6 +22,7 @@ class DriverDashboardScreen extends StatefulWidget {
 
 class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
   int _selectedTab = 0;
+  Timer? _autoRefreshTimer;
 
   @override
   void initState() {
@@ -28,6 +30,17 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<DriverProvider>().loadDashboard();
     });
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+      if (mounted) {
+        context.read<DriverProvider>().loadDashboard();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    super.dispose();
   }
 
   @override

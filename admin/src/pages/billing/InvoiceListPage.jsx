@@ -12,7 +12,7 @@ export const InvoiceListPage = () => {
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [bulkMonth, setBulkMonth] = useState(new Date().toISOString().slice(0, 7));
   const [bulkDueDate, setBulkDueDate] = useState('');
-  const [bulkAmount, setBulkAmount] = useState(7500);
+  const [bulkAmount, setBulkAmount] = useState('7500');
   const [bulkGenerating, setBulkGenerating] = useState(false);
 
   // Verify Payment Modal State
@@ -50,7 +50,7 @@ export const InvoiceListPage = () => {
       const res = await client.post('/admin/invoices/bulk-generate', {
         monthYear: bulkMonth,
         dueDate: bulkDueDate || undefined,
-        defaultAmount: bulkAmount,
+        defaultAmount: Number(bulkAmount) || 7500,
       });
       if (res.data.success) {
         alert(res.data.message);
@@ -317,9 +317,11 @@ export const InvoiceListPage = () => {
                 <label className="mb-1 block font-semibold text-slate-300">Default Amount (LKR)</label>
                 <input
                   type="number"
+                  required
                   value={bulkAmount}
-                  onChange={(e) => setBulkAmount(Number(e.target.value))}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-800 p-2 text-slate-100"
+                  onChange={(e) => setBulkAmount(e.target.value)}
+                  placeholder="e.g. 7500"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-800 p-2.5 text-slate-100 focus:border-amber-500 focus:outline-none font-mono"
                 />
                 <span className="text-[10px] text-slate-500 mt-1 block">
                   Students with customized fee amounts will use their configured fee.

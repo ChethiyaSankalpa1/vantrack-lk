@@ -402,3 +402,57 @@ exports.verifyPayment = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+/**
+ * @desc    Seed Due Unpaid Test Invoices for Parent
+ * @route   POST /api/invoices/seed-due
+ * @access  Private (Admin / Parent for testing)
+ */
+exports.seedTestUnpaidInvoices = async (req, res) => {
+  try {
+    const parent = await User.findOne({ email: 'parent@vantrack.lk' });
+    if (!parent) {
+      return res.status(404).json({ success: false, message: 'Parent account parent@vantrack.lk not found.' });
+    }
+
+    const students = await Student.find({ parentId: parent._id });
+    if (students.length === 0) {
+      return res.status(404).json({ success: false, message: 'No student linked to parent@vantrack.lk.' });
+    }
+
+    const student = students[0];
+
+    const monthYear = `${new Date().getFullYear()}-${(new Date().getMonth() + 1).toString().padStart(2, '0')}`;
+    const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
+
+    const invoice = await Invoice.create({
+      invoiceNumber,
+      parentId: parent._id,
+      studentId: student._id,
+      monthYear,
+      amount: 7500,
+      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      status: 'unpaid',
+      paymentMethod: 'none',
+      notes: `School Van Transport Fee for ${student.name} (${monthYear})`,
+    });
+
+    const io = req.app.get('io');
+    await sendNotification({
+      userId: parent._id,
+      title: '💳 New Transport Fee Invoice Issued',
+      message: `Invoice ${invoice.invoiceNumber} for LKR 7,500 has been generated for ${student.name}. Tap to pay via PayHere, Bank Deposit, or Cash.`,
+      type: 'payment_due',
+      data: { invoiceId: invoice._id.toString() },
+      io,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: `Test due unpaid invoice ${invoice.invoiceNumber} (Rs. 7,500 LKR) generated for Kasun (${student.name}).`,
+      data: invoice,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

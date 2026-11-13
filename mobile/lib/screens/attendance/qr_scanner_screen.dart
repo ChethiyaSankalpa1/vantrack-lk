@@ -86,6 +86,37 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           // Camera scanner viewfinder
           MobileScanner(
             controller: _scannerController,
+            errorBuilder: (context, error, child) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.camera_alt_outlined, size: 64, color: Colors.white54),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Camera Access Required',
+                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Please grant camera permission in Android Settings or tap below to enter pass code manually.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
+                      const SizedBox(height: 20),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent),
+                        icon: const Icon(Icons.keyboard_alt_rounded),
+                        label: const Text('Enter Pass Code Manually'),
+                        onPressed: _showManualCodeDialog,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
             onDetect: (capture) {
               if (_isProcessing) return;
               final barcodes = capture.barcodes;
