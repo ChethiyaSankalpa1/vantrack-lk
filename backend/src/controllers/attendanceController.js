@@ -149,8 +149,18 @@ exports.qrScanAttendance = async (req, res) => {
       });
     }
 
-    // Find student by QR code
-    const student = await Student.findOne({ qrCodeString });
+    // Find student by QR code or student ID fallback
+    let student = await Student.findOne({ qrCodeString });
+    if (!student) {
+      let candidateId = qrCodeString;
+      if (qrCodeString.startsWith('VANTRACK_STU_')) {
+        candidateId = qrCodeString.replace('VANTRACK_STU_', '');
+      }
+      if (mongoose.Types.ObjectId.isValid(candidateId)) {
+        student = await Student.findById(candidateId);
+      }
+    }
+
     if (!student) {
       return res.status(404).json({
         success: false,

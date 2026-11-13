@@ -9,7 +9,7 @@ const Invoice = require('../models/Invoice');
 const Incident = require('../models/Incident');
 const AuditLog = require('../models/AuditLog');
 const VehicleLocation = require('../models/VehicleLocation');
-const { broadcastToTripParents } = require('../services/notificationService');
+const { sendNotification, broadcastToTripParents } = require('../services/notificationService');
 
 // Helper to log administrative actions
 const createAudit = async (req, action, targetType, targetId, details = {}) => {
