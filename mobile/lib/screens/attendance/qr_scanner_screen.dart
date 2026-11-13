@@ -38,7 +38,6 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
       detectionSpeed: DetectionSpeed.normal,
       facing: CameraFacing.back,
       torchEnabled: false,
-      autoStart: false,
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -67,13 +66,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
       _permissionChecked = true;
     });
 
-    if (status.isGranted) {
-      try {
-        await _scannerController.start();
-      } catch (e) {
-        debugPrint('[Camera Start Error] $e');
-      }
-    } else if (status.isPermanentlyDenied) {
+    if (status.isPermanentlyDenied) {
       if (mounted) {
         _showPermissionSettingsDialog();
       }
@@ -185,7 +178,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
         // Camera scanner viewfinder
         MobileScanner(
           controller: _scannerController,
-          errorBuilder: (context, error, child) {
+          errorBuilder: (context, error) {
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
