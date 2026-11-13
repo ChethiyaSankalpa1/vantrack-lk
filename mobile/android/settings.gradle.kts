@@ -25,3 +25,11 @@ plugins {
 }
 
 include(":app")
+
+gradle.beforeProject {
+    afterEvaluate {
+        extensions.findByName("android")?.withGroovyBuilder {
+            setProperty("compileSdk", 36)
+        }
+    }
+}

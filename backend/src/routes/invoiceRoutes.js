@@ -7,6 +7,9 @@ const {
   uploadReceipt,
   initiatePayHere,
   payHereNotify,
+  payHereReturn,
+  payHereCancel,
+  renderPayHereCheckoutPage,
   verifyPayment,
   getCashInvoicesForDriver,
   confirmCashPayment,
@@ -15,8 +18,11 @@ const {
 
 const bankDepositController = require('../controllers/bankDepositController');
 
-// PayHere Webhook (Public, verified with MD5 signature)
+// PayHere Webhook & browser-facing pages (Public)
 router.post('/payhere/notify', payHereNotify);
+router.get('/payhere/checkout-page/:invoiceId', renderPayHereCheckoutPage);
+router.get('/payhere/return', payHereReturn);
+router.get('/payhere/cancel', payHereCancel);
 
 // Seed due unpaid test invoice for parent testing
 router.post('/seed-due', protect, seedTestUnpaidInvoices);

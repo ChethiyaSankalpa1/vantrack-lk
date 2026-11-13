@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "lk.vantrack.vantrack_lk"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

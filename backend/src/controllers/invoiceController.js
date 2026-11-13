@@ -140,6 +140,50 @@ exports.uploadReceipt = async (req, res) => {
 };
 
 /**
+ * Build PayHere checkout parameters for an invoice (shared helper).
+ */
+const buildPayHereParams = (invoice) => {
+  const merchantId = process.env.PAYHERE_MERCHANT_ID || '1234567';
+  const merchantSecret = process.env.PAYHERE_SECRET || 'secret123';
+  const currency = 'LKR';
+  const amountFormatted = parseFloat(invoice.amount).toFixed(2);
+  const baseUrl = process.env.APP_BASE_URL || 'https://vantrack-lk.onrender.com';
+
+  // PayHere MD5 Checksum: MD5(merchant_id + order_id + amount + currency + strtoupper(MD5(merchant_secret)))
+  const hashedSecret = crypto.createHash('md5').update(merchantSecret).digest('hex').toUpperCase();
+  const hash = crypto
+    .createHash('md5')
+    .update(merchantId + invoice.invoiceNumber + amountFormatted + currency + hashedSecret)
+    .digest('hex')
+    .toUpperCase();
+
+  const parentName = (invoice.parentId?.name || 'Valued Parent').split(' ');
+  const firstName = parentName[0] || 'Parent';
+  const lastName = parentName.slice(1).join(' ') || 'Customer';
+
+  return {
+    sandbox: process.env.NODE_ENV !== 'production',
+    merchant_id: merchantId,
+    return_url: `${baseUrl}/api/invoices/payhere/return`,
+    cancel_url: `${baseUrl}/api/invoices/payhere/cancel`,
+    notify_url: `${baseUrl}/api/invoices/payhere/notify`,
+    order_id: invoice.invoiceNumber,
+    items: `VanTrack LK Monthly School Transport - ${invoice.monthYear} (${invoice.studentId?.name || ''})`,
+    amount: amountFormatted,
+    currency,
+    hash,
+    first_name: firstName,
+    last_name: lastName,
+    email: invoice.parentId?.email || 'parent@vantrack.lk',
+    phone: invoice.parentId?.phone || '+94771234567',
+    address: 'Sri Lanka',
+    city: 'Colombo',
+    country: 'Sri Lanka',
+    custom_1: invoice._id.toString(),
+  };
+};
+
+/**
  * @desc    Initiate PayHere Online Payment (generate secure hash & payload)
  * @route   POST /api/invoices/:id/payhere-checkout
  * @access  Private (Parent)
@@ -158,43 +202,7 @@ exports.initiatePayHere = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invoice is already paid' });
     }
 
-    const merchantId = process.env.PAYHERE_MERCHANT_ID || '1234567';
-    const merchantSecret = process.env.PAYHERE_SECRET || 'secret123';
-    const currency = 'LKR';
-    const amountFormatted = parseFloat(invoice.amount).toFixed(2);
-
-    // PayHere MD5 Checksum: MD5(merchant_id + order_id + amount + currency + strtoupper(MD5(merchant_secret)))
-    const hashedSecret = crypto.createHash('md5').update(merchantSecret).digest('hex').toUpperCase();
-    const hash = crypto
-      .createHash('md5')
-      .update(merchantId + invoice.invoiceNumber + amountFormatted + currency + hashedSecret)
-      .digest('hex')
-      .toUpperCase();
-
-    const parentName = (invoice.parentId?.name || 'Valued Parent').split(' ');
-    const firstName = parentName[0] || 'Parent';
-    const lastName = parentName.slice(1).join(' ') || 'Customer';
-
-    const checkoutParams = {
-      sandbox: process.env.NODE_ENV !== 'production',
-      merchant_id: merchantId,
-      return_url: 'https://vantrack-lk.onrender.com/api/invoices/payhere/return',
-      cancel_url: 'https://vantrack-lk.onrender.com/api/invoices/payhere/cancel',
-      notify_url: 'https://vantrack-lk.onrender.com/api/invoices/payhere/notify',
-      order_id: invoice.invoiceNumber,
-      items: `VanTrack LK Monthly School Transport - ${invoice.monthYear} (${invoice.studentId?.name || ''})`,
-      amount: amountFormatted,
-      currency,
-      hash,
-      first_name: firstName,
-      last_name: lastName,
-      email: invoice.parentId?.email || 'parent@vantrack.lk',
-      phone: invoice.parentId?.phone || '+94771234567',
-      address: 'Sri Lanka',
-      city: 'Colombo',
-      country: 'Sri Lanka',
-      custom_1: invoice._id.toString(),
-    };
+    const checkoutParams = buildPayHereParams(invoice);
 
     res.status(200).json({
       success: true,
@@ -204,6 +212,149 @@ exports.initiatePayHere = async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
+};
+
+/**
+ * @desc    Render a self-submitting HTML form that POSTs to PayHere checkout
+ * @route   GET /api/invoices/payhere/checkout-page/:invoiceId
+ * @access  Public (opened in system browser; amount is bound to the invoice)
+ */
+exports.renderPayHereCheckoutPage = async (req, res) => {
+  try {
+    const invoice = await Invoice.findById(req.params.invoiceId)
+      .populate('studentId', 'name schoolName')
+      .populate('parentId', 'name phone email');
+
+    if (!invoice) {
+      return res.status(404).send('<h1>Invoice not found</h1>');
+    }
+
+    if (invoice.status === 'paid') {
+      return res.status(200).send(`
+        <html><body style="font-family:Arial,sans-serif;text-align:center;padding:40px;">
+          <h2 style="color:#16a34a;">This invoice has already been paid.</h2>
+          <p>Invoice ${invoice.invoiceNumber} is settled. You can close this window.</p>
+        </body></html>
+      `);
+    }
+
+    const params = buildPayHereParams(invoice);
+    const checkoutUrl = params.sandbox
+      ? 'https://sandbox.payhere.lk/pay/checkout'
+      : 'https://www.payhere.lk/pay/checkout';
+
+    const hiddenInputs = Object.entries(params)
+      .map(([k, v]) => `<input type="hidden" name="${k}" value="${String(v).replace(/"/g, '&quot;')}">`)
+      .join('\n      ');
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Redirecting to PayHere Secure Checkout...</title>
+  <style>
+    body { font-family: Arial, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #0E2442; color: #fff; }
+    .box { text-align: center; padding: 32px; }
+    .spinner { border: 4px solid rgba(255,255,255,0.2); border-top-color: #22c55e; border-radius: 50%; width: 48px; height: 48px; animation: spin 1s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    h2 { margin: 0 0 8px; }
+    p { opacity: 0.8; margin: 0; }
+  </style>
+</head>
+<body>
+  <form method="POST" action="${checkoutUrl}" id="payhere-form">
+    ${hiddenInputs}
+  </form>
+  <div class="box">
+    <div class="spinner"></div>
+    <h2>Redirecting to PayHere Secure Checkout</h2>
+    <p>Please wait while we connect you to the secure payment gateway...</p>
+    <p style="margin-top:16px;font-size:12px;">If you are not redirected automatically, <button type="submit" form="payhere-form" style="background:#22c55e;color:#fff;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-weight:bold;">click here to continue</button></p>
+  </div>
+  <script>document.getElementById('payhere-form').submit();</script>
+</body>
+</html>`;
+
+    res.status(200).set('Content-Type', 'text/html').send(html);
+  } catch (error) {
+    res.status(500).send(`<h1>Payment initialization failed</h1><p>${error.message}</p>`);
+  }
+};
+
+/**
+ * @desc    PayHere return URL handler (customer redirected after payment)
+ * @route   GET /api/invoices/payhere/return
+ * @access  Public
+ */
+exports.payHereReturn = (req, res) => {
+  const { order_id, status_code, payment_id } = req.query;
+  const success = status_code === '2' || status_code === 2;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${success ? 'Payment Successful' : 'Payment Pending'}</title>
+  <style>
+    body { font-family: Arial, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f0fdf4; }
+    .card { background: #fff; border-radius: 16px; padding: 32px; max-width: 420px; width: 90%; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
+    .icon { width: 64px; height: 64px; border-radius: 50%; background: ${success ? '#dcfce7' : '#fef3c7'}; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 32px; }
+    h2 { color: ${success ? '#16a34a' : '#d97706'}; margin: 0 0 8px; }
+    p { color: #475569; margin: 4px 0; }
+    .btn { display: inline-block; margin-top: 20px; background: #0E2442; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 10px; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">${success ? '✅' : '⏳'}</div>
+    <h2>${success ? 'Payment Successful!' : 'Payment Received'}</h2>
+    <p>Invoice: <strong>${order_id || '-'}</strong></p>
+    ${payment_id ? `<p>Reference: <strong>${payment_id}</strong></p>` : ''}
+    <p>${success
+      ? 'Thank you! Your transport fee payment has been verified. Return to the VanTrack LK app to view your digital receipt.'
+      : 'Your payment is being processed. Return to the VanTrack LK app to check the status.'}</p>
+    <p style="font-size:12px;color:#94a3b8;margin-top:16px;">You can close this window and reopen the VanTrack LK app.</p>
+  </div>
+</body>
+</html>`;
+
+  res.status(200).set('Content-Type', 'text/html').send(html);
+};
+
+/**
+ * @desc    PayHere cancel URL handler (customer canceled the payment)
+ * @route   GET /api/invoices/payhere/cancel
+ * @access  Public
+ */
+exports.payHereCancel = (req, res) => {
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Payment Cancelled</title>
+  <style>
+    body { font-family: Arial, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #fef2f2; }
+    .card { background: #fff; border-radius: 16px; padding: 32px; max-width: 420px; width: 90%; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
+    .icon { width: 64px; height: 64px; border-radius: 50%; background: #fee2e2; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 32px; }
+    h2 { color: #dc2626; margin: 0 0 8px; }
+    p { color: #475569; margin: 4px 0; }
+    .btn { display: inline-block; margin-top: 20px; background: #0E2442; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 10px; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">❌</div>
+    <h2>Payment Cancelled</h2>
+    <p>You have cancelled the payment. No charge has been made to your card.</p>
+    <p style="font-size:12px;color:#94a3b8;margin-top:16px;">You can close this window and return to the VanTrack LK app to try again or choose another payment method.</p>
+  </div>
+</body>
+</html>`;
+
+  res.status(200).set('Content-Type', 'text/html').send(html);
 };
 
 /**

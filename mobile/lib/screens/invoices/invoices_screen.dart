@@ -1,9 +1,17 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../config/app_colors.dart';
+import '../../core/storage/local_storage.dart';
 import '../../models/invoice_model.dart';
 import '../../providers/invoice_provider.dart';
+import '../../services/upload_service.dart';
 import 'digital_receipt_screen.dart';
 
 class InvoicesScreen extends StatefulWidget {
@@ -13,15 +21,29 @@ class InvoicesScreen extends StatefulWidget {
   State<InvoicesScreen> createState() => _InvoicesScreenState();
 }
 
-class _InvoicesScreenState extends State<InvoicesScreen> {
+class _InvoicesScreenState extends State<InvoicesScreen> with WidgetsBindingObserver {
   final _currencyFormat = NumberFormat.currency(locale: 'en_LK', symbol: 'Rs. ', decimalDigits: 2);
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<InvoiceProvider>().loadInvoices();
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      context.read<InvoiceProvider>().loadInvoices();
+    }
   }
 
   @override
@@ -529,61 +551,49 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
   }
 
   Future<void> _handlePayHereCheckout(InvoiceProvider provider, InvoiceModel invoice) async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => const Center(
-        child: Card(
-          child: Padding(
-            padding: EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Connecting to PayHere Secure Gateway...'),
-              ],
+    final baseUrl = LocalStorage.getBaseUrl().replaceAll(RegExp(r'/+$'), '');
+    final checkoutUrl = '$baseUrl/invoices/payhere/checkout-page/${invoice.id}';
+    final uri = Uri.parse(checkoutUrl);
+
+    try {
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Could not open the payment page. Please try again.'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+        return;
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'PayHere checkout opened. Complete your payment, then return to the app — your receipt will unlock automatically.',
+            ),
+            backgroundColor: AppColors.primary,
+            duration: const Duration(seconds: 6),
+            action: SnackBarAction(
+              label: 'OK',
+              textColor: Colors.white,
+              onPressed: () {},
             ),
           ),
-        ),
-      ),
-    );
-
-    final params = await provider.getPayHereCheckoutParams(invoice.id);
-    if (!mounted) return;
-    Navigator.pop(context); // Close loading dialog
-
-    if (params != null) {
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          title: const Row(
-            children: [
-              Icon(Icons.lock_rounded, color: Colors.deepPurple),
-              SizedBox(width: 8),
-              Text('PayHere Gateway', style: TextStyle(fontSize: 16)),
-            ],
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to open payment gateway: $e'),
+            backgroundColor: AppColors.error,
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Order ID: ${params['order_id']}'),
-              const SizedBox(height: 4),
-              Text('Total Amount: Rs. ${params['amount']} LKR', style: const TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              const Text(
-                'PayHere production/sandbox checkout session has been initialized. Once customer completes OTP verification, receipt will automatically unlock.',
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
-          ],
-        ),
-      );
+        );
+      }
     }
   }
 
@@ -624,13 +634,34 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
 
     String selectedBankId = bankAccounts.first['_id']?.toString() ?? '';
     final depositorController = TextEditingController();
-    final dateController = TextEditingController(text: DateTime.now().toIso8601String().split('T').first);
+    final dateController = TextEditingController(
+      text: DateFormat('yyyy-MM-dd').format(DateTime.now()),
+    );
     final refController = TextEditingController();
-    final urlController = TextEditingController();
     final notesController = TextEditingController();
 
-    showDialog(
+    File? selectedReceiptFile;
+    String? selectedReceiptFileName;
+    String? uploadedReceiptUrl;
+    bool isUploading = false;
+    bool isSubmitting = false;
+
+    final picker = ImagePicker();
+    final uploadService = UploadService();
+
+    bool isImageFile(File file) {
+      final ext = file.path.split('.').last.toLowerCase();
+      return ['jpg', 'jpeg', 'png', 'webp', 'heic'].contains(ext);
+    }
+
+    bool isPdfFile(File file) {
+      return file.path.split('.').last.toLowerCase() == 'pdf';
+    }
+
+    showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) {
           final currentAcc = bankAccounts.firstWhere(
@@ -638,177 +669,613 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
             orElse: () => bankAccounts.first,
           );
 
-          return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: const Row(
-              children: [
-                Icon(Icons.account_balance_rounded, color: AppColors.primary),
-                SizedBox(width: 8),
-                Text('Bank Deposit Receipt Form', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('1. Select Operator Bank Destination:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedBankId,
-                    isExpanded: true,
-                    decoration: InputDecoration(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    items: bankAccounts.map((acc) {
-                      final isDef = acc['isDefault'] == true;
-                      return DropdownMenuItem<String>(
-                        value: acc['_id'].toString(),
-                        child: Text(
-                          '${acc['bankName']} - ${acc['accountNumber']} ${isDef ? '(DEFAULT)' : ''}',
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (val) {
-                      if (val != null) setDialogState(() => selectedBankId = val);
-                    },
-                  ),
-                  const SizedBox(height: 10),
+          Future<void> pickReceiptImage(ImageSource source) async {
+            try {
+              final XFile? picked = await picker.pickImage(
+                source: source,
+                imageQuality: 80,
+                maxWidth: 1200,
+              );
+              if (picked != null) {
+                selectedReceiptFile = File(picked.path);
+                selectedReceiptFileName = picked.name;
+                uploadedReceiptUrl = null;
+                setDialogState(() {});
+              }
+            } catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed to pick image: $e'), backgroundColor: AppColors.error),
+                );
+              }
+            }
+          }
 
-                  // Selected Bank Account Highlight Card
+          Future<void> pickReceiptFile() async {
+            try {
+              final FilePickerResult? result = await FilePicker.platform.pickFiles(
+                type: FileType.custom,
+                allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
+                withData: false,
+              );
+              if (result != null && result.files.single.path != null) {
+                final pickedFile = result.files.single;
+                final file = File(pickedFile.path!);
+                if (!isImageFile(file) && !isPdfFile(file)) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Only JPG, PNG, WEBP images and PDF files are allowed.'),
+                        backgroundColor: AppColors.error,
+                      ),
+                    );
+                  }
+                  return;
+                }
+                selectedReceiptFile = file;
+                selectedReceiptFileName = pickedFile.name;
+                uploadedReceiptUrl = null;
+                setDialogState(() {});
+              }
+            } catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed to pick file: $e'), backgroundColor: AppColors.error),
+                );
+              }
+            }
+          }
+
+          return DraggableScrollableSheet(
+            initialChildSize: 0.92,
+            minChildSize: 0.5,
+            maxChildSize: 0.95,
+            builder: (context, scrollController) => Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              child: Column(
+                children: [
+                  // Drag handle
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(top: 12, bottom: 4),
+                    width: 44,
+                    height: 5,
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(3),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  ),
+                  // Header
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+                    decoration: const BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                    ),
+                    child: Row(
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              currentAcc['bankName'] ?? 'Bank',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primary),
-                            ),
-                            IconButton(
-                              visualDensity: VisualDensity.compact,
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              icon: const Icon(Icons.copy_rounded, size: 16, color: AppColors.accent),
-                              tooltip: 'Copy Account Number',
-                              onPressed: () {
-                                final num = currentAcc['accountNumber']?.toString() ?? '';
-                                if (num.isNotEmpty) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Account number copied: $num')),
-                                  );
-                                }
-                              },
-                            ),
-                          ],
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.account_balance_rounded, color: Colors.white, size: 22),
                         ),
-                        Text('Account No: ${currentAcc['accountNumber']}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.accentDark)),
-                        Text('Holder: ${currentAcc['accountHolderName']}', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                        Text('Branch: ${currentAcc['branchName']}', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Bank Deposit Receipt',
+                                style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800),
+                              ),
+                              Text(
+                                'Submit your payment slip for verification',
+                                style: TextStyle(color: Colors.white70, fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: const Icon(Icons.close_rounded, color: Colors.white),
+                        ),
                       ],
                     ),
                   ),
 
-                  const SizedBox(height: 16),
-                  const Text('2. Enter Deposit & Receipt Details:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
+                  // Body
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Section 1: Bank Account
+                          _buildSectionLabel(Icons.account_balance_wallet_rounded, '1. Select Bank Account'),
+                          const SizedBox(height: 10),
+                          DropdownButtonFormField<String>(
+                            initialValue: selectedBankId,
+                            isExpanded: true,
+                            decoration: InputDecoration(
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade300)),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade300)),
+                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
+                              prefixIcon: const Icon(Icons.account_balance_rounded, color: AppColors.primary),
+                            ),
+                            items: bankAccounts.map((acc) {
+                              final isDef = acc['isDefault'] == true;
+                              return DropdownMenuItem<String>(
+                                value: acc['_id'].toString(),
+                                child: Text(
+                                  '${acc['bankName']} • ${acc['accountNumber']}${isDef ? '  ★' : ''}',
+                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) setDialogState(() => selectedBankId = val);
+                            },
+                          ),
+                          const SizedBox(height: 12),
 
-                  TextField(
-                    controller: depositorController,
-                    decoration: const InputDecoration(
-                      labelText: 'Depositor Name *',
-                      hintText: 'e.g., Kasun Jayawardena',
-                      prefixIcon: Icon(Icons.person_outline_rounded),
+                          // Account detail card
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.04),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        currentAcc['bankName'] ?? 'Bank',
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.primary),
+                                      ),
+                                    ),
+                                    GestureDetector(
+                                      onTap: () {
+                                        final num = currentAcc['accountNumber']?.toString() ?? '';
+                                        if (num.isNotEmpty) {
+                                          Clipboard.setData(ClipboardData(text: num));
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text('Account number copied: $num'), backgroundColor: AppColors.success),
+                                          );
+                                        }
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.accent.withValues(alpha: 0.1),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.copy_rounded, size: 14, color: AppColors.accent),
+                                            SizedBox(width: 4),
+                                            Text('Copy', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.accent)),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                _buildAccountDetailRow('Account No', currentAcc['accountNumber']?.toString() ?? '—', isHighlight: true),
+                                _buildAccountDetailRow('Holder', currentAcc['accountHolderName']?.toString() ?? '—'),
+                                _buildAccountDetailRow('Branch', currentAcc['branchName']?.toString() ?? '—'),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // Section 2: Deposit Details
+                          _buildSectionLabel(Icons.receipt_long_rounded, '2. Deposit Details'),
+                          const SizedBox(height: 10),
+
+                          // Depositor Name
+                          TextField(
+                            controller: depositorController,
+                            decoration: InputDecoration(
+                              labelText: 'Depositor Name *',
+                              hintText: 'e.g., Kasun Jayawardena',
+                              prefixIcon: const Icon(Icons.person_outline_rounded, color: AppColors.primary),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade300)),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade300)),
+                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+
+                          // Deposit Date (date picker)
+                          TextField(
+                            controller: dateController,
+                            readOnly: true,
+                            onTap: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: DateTime.now(),
+                                firstDate: DateTime(2020),
+                                lastDate: DateTime.now().add(const Duration(days: 365)),
+                                builder: (context, child) {
+                                  return Theme(
+                                    data: Theme.of(context).copyWith(
+                                      colorScheme: const ColorScheme.light(
+                                        primary: AppColors.primary,
+                                        onPrimary: Colors.white,
+                                        surface: Colors.white,
+                                        onSurface: AppColors.textPrimary,
+                                      ),
+                                    ),
+                                    child: child!,
+                                  );
+                                },
+                              );
+                              if (picked != null) {
+                                dateController.text = DateFormat('yyyy-MM-dd').format(picked);
+                                setDialogState(() {});
+                              }
+                            },
+                            decoration: InputDecoration(
+                              labelText: 'Deposit Date *',
+                              prefixIcon: const Icon(Icons.calendar_today_rounded, color: AppColors.primary),
+                              suffixIcon: const Icon(Icons.arrow_drop_down_rounded, color: AppColors.textMuted),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade300)),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade300)),
+                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+
+                          // Reference Number
+                          TextField(
+                            controller: refController,
+                            decoration: InputDecoration(
+                              labelText: 'Bank Ref / Slip No.',
+                              hintText: 'e.g., CDM-84920',
+                              prefixIcon: const Icon(Icons.confirmation_number_outlined, color: AppColors.primary),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade300)),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade300)),
+                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                            ),
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // Section 3: Receipt File
+                          _buildSectionLabel(Icons.attach_file_rounded, '3. Receipt File *'),
+                          const SizedBox(height: 10),
+
+                          if (selectedReceiptFile != null)
+                            Stack(
+                              children: [
+                                Container(
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.background,
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(color: AppColors.cardBorder),
+                                  ),
+                                  child: isImageFile(selectedReceiptFile!)
+                                      ? ClipRRect(
+                                          borderRadius: BorderRadius.circular(14),
+                                          child: Image.file(
+                                            selectedReceiptFile!,
+                                            width: double.infinity,
+                                            height: 200,
+                                            fit: BoxFit.cover,
+                                          ),
+                                        )
+                                      : Padding(
+                                          padding: const EdgeInsets.all(16),
+                                          child: Row(
+                                            children: [
+                                              Container(
+                                                width: 56,
+                                                height: 56,
+                                                decoration: BoxDecoration(
+                                                  color: AppColors.error.withValues(alpha: 0.1),
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                                child: const Icon(
+                                                  Icons.picture_as_pdf_rounded,
+                                                  color: AppColors.error,
+                                                  size: 32,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 14),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      selectedReceiptFileName ?? 'receipt.pdf',
+                                                      style: const TextStyle(
+                                                        fontWeight: FontWeight.w700,
+                                                        fontSize: 14,
+                                                        color: AppColors.textPrimary,
+                                                      ),
+                                                      maxLines: 2,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                    const SizedBox(height: 4),
+                                                    Text(
+                                                      'PDF Document',
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        color: AppColors.textSecondary,
+                                                        fontWeight: FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                ),
+                                Positioned(
+                                  top: 8,
+                                  right: 8,
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      selectedReceiptFile = null;
+                                      selectedReceiptFileName = null;
+                                      uploadedReceiptUrl = null;
+                                      setDialogState(() {});
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: const BoxDecoration(
+                                        color: Colors.black54,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(Icons.close_rounded, color: Colors.white, size: 18),
+                                    ),
+                                  ),
+                                ),
+                                if (isUploading)
+                                  Positioned.fill(
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.black45,
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                      child: const Center(
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            CircularProgressIndicator(color: Colors.white),
+                                            SizedBox(height: 8),
+                                            Text('Uploading...', style: TextStyle(color: Colors.white, fontSize: 12)),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            )
+                          else
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: AppColors.background,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: AppColors.cardBorder),
+                              ),
+                              child: Column(
+                                children: [
+                                  Icon(Icons.upload_file_rounded, size: 40, color: AppColors.textMuted),
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    'No receipt file selected',
+                                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  const Text(
+                                    'Upload a clear photo or PDF of the deposit slip',
+                                    style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          const SizedBox(height: 12),
+
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    side: const BorderSide(color: AppColors.primary),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                  icon: const Icon(Icons.camera_alt_rounded, color: AppColors.primary, size: 18),
+                                  label: const Text('Camera', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 12)),
+                                  onPressed: () => pickReceiptImage(ImageSource.camera),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    side: const BorderSide(color: AppColors.primary),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                  icon: const Icon(Icons.photo_library_rounded, color: AppColors.primary, size: 18),
+                                  label: const Text('Gallery', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 12)),
+                                  onPressed: () => pickReceiptImage(ImageSource.gallery),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    side: const BorderSide(color: AppColors.accent),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                  icon: const Icon(Icons.folder_open_rounded, color: AppColors.accent, size: 18),
+                                  label: const Text('Files', style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.w600, fontSize: 12)),
+                                  onPressed: pickReceiptFile,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Accepted: JPG, PNG, WEBP, PDF (max 10 MB)',
+                            style: TextStyle(fontSize: 11, color: AppColors.textMuted, fontWeight: FontWeight.w500),
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // Section 4: Notes
+                          _buildSectionLabel(Icons.notes_rounded, '4. Additional Notes (Optional)'),
+                          const SizedBox(height: 10),
+                          TextField(
+                            controller: notesController,
+                            maxLines: 3,
+                            decoration: InputDecoration(
+                              hintText: 'e.g., Paid via CDM at Maharagama branch',
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade300)),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade300)),
+                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
+                              contentPadding: const EdgeInsets.all(14),
+                            ),
+                          ),
+
+                          const SizedBox(height: 24),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: dateController,
-                    decoration: const InputDecoration(
-                      labelText: 'Deposit Date (YYYY-MM-DD) *',
-                      prefixIcon: Icon(Icons.calendar_today_rounded),
+
+                  // Submit Button
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border(top: BorderSide(color: Colors.grey.shade200)),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: refController,
-                    decoration: const InputDecoration(
-                      labelText: 'Bank Ref / Slip Number (Optional)',
-                      hintText: 'e.g., CDM-84920 or Ref #',
-                      prefixIcon: Icon(Icons.confirmation_number_outlined),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: urlController,
-                    decoration: const InputDecoration(
-                      labelText: 'Receipt Image URL / File Link *',
-                      hintText: 'https://cloudinary.com/... or Slip Photo URL',
-                      prefixIcon: Icon(Icons.link_rounded),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: notesController,
-                    decoration: const InputDecoration(
-                      labelText: 'Additional Notes (Optional)',
-                      hintText: 'e.g. Paid via CDM Maharagama',
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.accent,
+                          padding: const EdgeInsets.symmetric(vertical: 15),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        onPressed: isSubmitting
+                            ? null
+                            : () async {
+                                final depName = depositorController.text.trim();
+                                final depDate = dateController.text.trim();
+
+                                if (depName.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Please enter the depositor name.'), backgroundColor: AppColors.error),
+                                  );
+                                  return;
+                                }
+                                if (depDate.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Please select the deposit date.'), backgroundColor: AppColors.error),
+                                  );
+                                  return;
+                                }
+                                if (selectedReceiptFile == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Please add a receipt file (image or PDF).'), backgroundColor: AppColors.error),
+                                  );
+                                  return;
+                                }
+
+                                setDialogState(() => isSubmitting = true);
+
+                                try {
+                                  // Upload receipt file first
+                                  setDialogState(() => isUploading = true);
+                                  final result = await uploadService.uploadFile(
+                                    file: selectedReceiptFile!,
+                                    type: 'receipt',
+                                  );
+                                  uploadedReceiptUrl = result.url;
+                                  setDialogState(() => isUploading = false);
+
+                                  // Submit bank deposit
+                                  final ok = await provider.submitBankDeposit(
+                                    invoiceId: invoice.id,
+                                    bankAccountId: selectedBankId,
+                                    depositorName: depName,
+                                    depositDate: depDate,
+                                    depositReferenceNumber: refController.text.trim(),
+                                    receiptFileUrl: uploadedReceiptUrl!,
+                                    notes: notesController.text.trim(),
+                                  );
+
+                                  if (context.mounted) {
+                                    Navigator.pop(ctx);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(ok
+                                            ? 'Deposit slip submitted! Pending verification.'
+                                            : provider.errorMessage ?? 'Failed to submit.'),
+                                        backgroundColor: ok ? AppColors.success : AppColors.error,
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+                                    );
+                                  }
+                                } finally {
+                                  if (context.mounted) {
+                                    setDialogState(() {
+                                      isSubmitting = false;
+                                      isUploading = false;
+                                    });
+                                  }
+                                }
+                              },
+                        child: isSubmitting
+                            ? const SizedBox(
+                                height: 22,
+                                width: 22,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                              )
+                            : const Text(
+                                'Submit Deposit Slip',
+                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15),
+                              ),
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent),
-                onPressed: () async {
-                  final depName = depositorController.text.trim();
-                  final depDate = dateController.text.trim();
-                  final fileUrl = urlController.text.trim();
-
-                  if (depName.isEmpty || depDate.isEmpty || fileUrl.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Please fill in Depositor Name, Date, and Receipt URL.')),
-                    );
-                    return;
-                  }
-
-                  Navigator.pop(ctx);
-                  final ok = await provider.submitBankDeposit(
-                    invoiceId: invoice.id,
-                    bankAccountId: selectedBankId,
-                    depositorName: depName,
-                    depositDate: depDate,
-                    depositReferenceNumber: refController.text.trim(),
-                    receiptFileUrl: fileUrl,
-                    notes: notesController.text.trim(),
-                  );
-
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(ok
-                            ? 'Bank deposit slip submitted! Pending admin verification.'
-                            : provider.errorMessage ?? 'Failed to submit bank deposit slip'),
-                        backgroundColor: ok ? AppColors.success : AppColors.error,
-                      ),
-                    );
-                  }
-                },
-                child: const Text('Submit Deposit Slip'),
-              ),
-            ],
           );
         },
       ),
@@ -893,5 +1360,43 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
 
   String _formatDate(DateTime dt) {
     return '${dt.day}/${dt.month}/${dt.year}';
+  }
+
+  Widget _buildSectionLabel(IconData icon, String label) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: AppColors.primary),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAccountDetailRow(String label, String value, {bool isHighlight = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w500)),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isHighlight ? FontWeight.w800 : FontWeight.w600,
+                color: isHighlight ? AppColors.accent : AppColors.textPrimary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

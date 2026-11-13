@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../config/app_colors.dart';
 import '../../services/attendance_service.dart';
 
@@ -17,7 +18,7 @@ class QrScannerScreen extends StatefulWidget {
   State<QrScannerScreen> createState() => _QrScannerScreenState();
 }
 
-class _QrScannerScreenState extends State<QrScannerScreen> {
+class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingObserver {
   final AttendanceService _service = AttendanceService();
   late MobileScannerController _scannerController;
 
@@ -25,22 +26,95 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   bool _isProcessing = false;
   bool _isTorchOn = false;
   String? _lastScannedCode;
+  bool _hasCameraPermission = false;
+  bool _permissionChecked = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _scanMode = widget.initialMode;
     _scannerController = MobileScannerController(
       detectionSpeed: DetectionSpeed.normal,
       facing: CameraFacing.back,
       torchEnabled: false,
+      autoStart: false,
     );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _requestCameraPermission();
+    });
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _scannerController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && !_hasCameraPermission) {
+      _requestCameraPermission();
+    }
+  }
+
+  Future<void> _requestCameraPermission() async {
+    final status = await Permission.camera.request();
+    setState(() {
+      _hasCameraPermission = status.isGranted;
+      _permissionChecked = true;
+    });
+
+    if (status.isGranted) {
+      try {
+        await _scannerController.start();
+      } catch (e) {
+        debugPrint('[Camera Start Error] $e');
+      }
+    } else if (status.isPermanentlyDenied) {
+      if (mounted) {
+        _showPermissionSettingsDialog();
+      }
+    }
+  }
+
+  void _showPermissionSettingsDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Row(
+          children: [
+            Icon(Icons.camera_alt_rounded, color: AppColors.error),
+            SizedBox(width: 8),
+            Text('Camera Permission Required'),
+          ],
+        ),
+        content: const Text(
+          'Camera access is needed to scan student QR van passes. '
+          'Please enable camera permission in your device settings.',
+          style: TextStyle(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent),
+            icon: const Icon(Icons.settings_rounded, color: Colors.white),
+            label: const Text('Open Settings', style: TextStyle(color: Colors.white)),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await openAppSettings();
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -81,226 +155,325 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           const SizedBox(width: 4),
         ],
       ),
-      body: Stack(
-        children: [
-          // Camera scanner viewfinder
-          MobileScanner(
-            controller: _scannerController,
-            errorBuilder: (context, error, child) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (!_permissionChecked) {
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(color: AppColors.accent),
+            SizedBox(height: 16),
+            Text(
+              'Checking camera access...',
+              style: TextStyle(color: Colors.white70, fontSize: 14),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (!_hasCameraPermission) {
+      return _buildPermissionDeniedView();
+    }
+
+    return Stack(
+      children: [
+        // Camera scanner viewfinder
+        MobileScanner(
+          controller: _scannerController,
+          errorBuilder: (context, error, child) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.camera_alt_outlined, size: 64, color: Colors.white54),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Camera Unavailable',
+                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'The camera could not be started. Try again or enter the pass code manually.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.white70, fontSize: 13),
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.accent,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+                      label: const Text(
+                        'Retry Camera',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                      onPressed: () async {
+                        try {
+                          await _scannerController.stop();
+                          await _scannerController.start();
+                        } catch (_) {}
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    TextButton.icon(
+                      style: TextButton.styleFrom(foregroundColor: Colors.white70),
+                      icon: const Icon(Icons.keyboard_alt_rounded),
+                      label: const Text('Enter Pass Code Manually'),
+                      onPressed: _showManualCodeDialog,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+          onDetect: (capture) {
+            if (_isProcessing) return;
+            final barcodes = capture.barcodes;
+            for (final barcode in barcodes) {
+              final code = barcode.rawValue;
+              if (code != null && code.isNotEmpty && code != _lastScannedCode) {
+                _handleScannedCode(code);
+                break;
+              }
+            }
+          },
+        ),
+
+        // Scanning Target Overlay
+        Center(
+          child: Container(
+            width: 260,
+            height: 260,
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: _scanMode == 'boarded' ? AppColors.accent : AppColors.info,
+                width: 3,
+              ),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Stack(
+              children: [
+                // Corner brackets
+                Positioned(
+                  top: 10,
+                  left: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      _scanMode == 'boarded' ? 'PICKUP PASS' : 'DROPOFF PASS',
+                      style: TextStyle(
+                        color: _scanMode == 'boarded' ? AppColors.accent : AppColors.info,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
+                ),
+                if (_isProcessing)
+                  const Center(
+                    child: CircularProgressIndicator(color: Colors.white),
+                  ),
+              ],
+            ),
+          ),
+        ),
+
+        // Top Mode Switcher Bar
+        Positioned(
+          top: 16,
+          left: 20,
+          right: 20,
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.black87,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white24),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _scanMode = 'boarded'),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: _scanMode == 'boarded' ? AppColors.accent : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.login_rounded, size: 16, color: Colors.white),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Boarding Mode',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: _scanMode == 'boarded'
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _scanMode = 'dropped_off'),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: _scanMode == 'dropped_off' ? AppColors.info : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.logout_rounded, size: 16, color: Colors.white),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Drop-off Mode',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: _scanMode == 'dropped_off'
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // Bottom instruction card
+        Positioned(
+          bottom: 30,
+          left: 20,
+          right: 20,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.black87.withValues(alpha: 0.9),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white12),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withValues(alpha: 0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.qr_code_scanner_rounded, color: AppColors.accent),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.camera_alt_outlined, size: 64, color: Colors.white54),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Camera Access Required',
-                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 8),
                       Text(
-                        'Please grant camera permission in Android Settings or tap below to enter pass code manually.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.white70, fontSize: 13),
+                        'Point at Student\'s Van Pass',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                      const SizedBox(height: 20),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent),
-                        icon: const Icon(Icons.keyboard_alt_rounded),
-                        label: const Text('Enter Pass Code Manually'),
-                        onPressed: _showManualCodeDialog,
+                      SizedBox(height: 2),
+                      Text(
+                        'Parents will receive an instant notification.',
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
                       ),
                     ],
                   ),
                 ),
-              );
-            },
-            onDetect: (capture) {
-              if (_isProcessing) return;
-              final barcodes = capture.barcodes;
-              for (final barcode in barcodes) {
-                final code = barcode.rawValue;
-                if (code != null && code.isNotEmpty && code != _lastScannedCode) {
-                  _handleScannedCode(code);
-                  break;
-                }
-              }
-            },
-          ),
-
-          // Scanning Target Overlay
-          Center(
-            child: Container(
-              width: 260,
-              height: 260,
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: _scanMode == 'boarded' ? AppColors.accent : AppColors.info,
-                  width: 3,
-                ),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Stack(
-                children: [
-                  // Corner brackets
-                  Positioned(
-                    top: 10,
-                    left: 10,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.black54,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        _scanMode == 'boarded' ? 'PICKUP PASS' : 'DROPOFF PASS',
-                        style: TextStyle(
-                          color: _scanMode == 'boarded' ? AppColors.accent : AppColors.info,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (_isProcessing)
-                    const Center(
-                      child: CircularProgressIndicator(color: Colors.white),
-                    ),
-                ],
-              ),
+              ],
             ),
           ),
+        ),
+      ],
+    );
+  }
 
-          // Top Mode Switcher Bar
-          Positioned(
-            top: 16,
-            left: 20,
-            right: 20,
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: Colors.black87,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white24),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => setState(() => _scanMode = 'boarded'),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(
-                          color: _scanMode == 'boarded' ? AppColors.accent : Colors.transparent,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.login_rounded, size: 16, color: Colors.white),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Boarding Mode',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: _scanMode == 'boarded'
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => setState(() => _scanMode = 'dropped_off'),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(
-                          color: _scanMode == 'dropped_off' ? AppColors.info : Colors.transparent,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.logout_rounded, size: 16, color: Colors.white),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Drop-off Mode',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: _scanMode == 'dropped_off'
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+  Widget _buildPermissionDeniedView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.camera_alt_outlined, size: 64, color: Colors.white54),
+            const SizedBox(height: 16),
+            const Text(
+              'Camera Access Required',
+              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
             ),
-          ),
-
-          // Bottom instruction card
-          Positioned(
-            bottom: 30,
-            left: 20,
-            right: 20,
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.black87.withValues(alpha: 0.9),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white12),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: AppColors.accent.withValues(alpha: 0.2),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.qr_code_scanner_rounded, color: AppColors.accent),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Point at Student\'s Van Pass',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'Parents will receive an instant notification.',
-                          style: TextStyle(color: Colors.white70, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+            const SizedBox(height: 8),
+            const Text(
+              'Camera access is needed to scan student QR van passes. '
+              'Please grant camera permission or enter the pass code manually.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white70, fontSize: 13),
             ),
-          ),
-        ],
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.accent,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.camera_alt_rounded, color: Colors.white),
+              label: const Text(
+                'Grant Camera Permission',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+              onPressed: _requestCameraPermission,
+            ),
+            const SizedBox(height: 10),
+            TextButton.icon(
+              style: TextButton.styleFrom(foregroundColor: Colors.white70),
+              icon: const Icon(Icons.settings_rounded),
+              label: const Text('Open App Settings'),
+              onPressed: () async {
+                await openAppSettings();
+              },
+            ),
+            const SizedBox(height: 10),
+            TextButton.icon(
+              style: TextButton.styleFrom(foregroundColor: Colors.white70),
+              icon: const Icon(Icons.keyboard_alt_rounded),
+              label: const Text('Enter Pass Code Manually'),
+              onPressed: _showManualCodeDialog,
+            ),
+          ],
+        ),
       ),
     );
   }

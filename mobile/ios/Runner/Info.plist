@@ -32,6 +32,8 @@
 	<string>VanTrack LK requires continuous location updates for live tracking during school van journeys.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
 	<string>VanTrack LK requires location access to keep parents updated about school van arrival times.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>VanTrack LK needs camera access to scan student QR van passes for attendance (boarding/drop-off).</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
