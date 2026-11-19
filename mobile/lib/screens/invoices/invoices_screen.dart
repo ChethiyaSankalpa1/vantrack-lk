@@ -432,13 +432,27 @@ class _InvoicesScreenState extends State<InvoicesScreen> with WidgetsBindingObse
             ),
             const SizedBox(height: 20),
 
-            // Option 1: PayHere Online Gateway
+            // Option 1: Direct Credit / Debit Card Payment
             _buildPaymentOptionTile(
               icon: Icons.credit_card_rounded,
+              color: AppColors.accent,
+              title: 'Pay with Credit / Debit Card',
+              subtitle: 'Direct Visa, Mastercard or Amex card entry with instant receipt',
+              badge: 'INSTANT CARD',
+              onTap: () {
+                Navigator.pop(ctx);
+                _showCardPaymentDialog(provider, invoice);
+              },
+            ),
+            const SizedBox(height: 12),
+
+            // Option 2: PayHere Online Gateway
+            _buildPaymentOptionTile(
+              icon: Icons.travel_explore_rounded,
               color: Colors.deepPurple,
-              title: 'PayHere Online Gateway',
-              subtitle: 'Visa, Mastercard, eZ Cash, mCash, Genie',
-              badge: 'RECOMMENDED',
+              title: 'PayHere Web Payment Gateway',
+              subtitle: 'PayHere online portal (Visa, eZ Cash, mCash, Genie)',
+              badge: 'WEB PORTAL',
               onTap: () async {
                 Navigator.pop(ctx);
                 _handlePayHereCheckout(provider, invoice);
@@ -446,7 +460,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> with WidgetsBindingObse
             ),
             const SizedBox(height: 12),
 
-            // Option 2: Upload Bank Transfer Slip
+            // Option 3: Upload Bank Transfer Slip
             _buildPaymentOptionTile(
               icon: Icons.account_balance_rounded,
               color: AppColors.primary,
@@ -460,7 +474,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> with WidgetsBindingObse
             ),
             const SizedBox(height: 12),
 
-            // Option 3: Cash to Driver
+            // Option 4: Cash to Driver
             _buildPaymentOptionTile(
               icon: Icons.payments_rounded,
               color: AppColors.vanAmber,
@@ -474,6 +488,503 @@ class _InvoicesScreenState extends State<InvoicesScreen> with WidgetsBindingObse
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _showCardPaymentDialog(InvoiceProvider provider, InvoiceModel invoice) async {
+    final cardHolderController = TextEditingController();
+    final cardNumberController = TextEditingController();
+    final expiryController = TextEditingController();
+    final cvvController = TextEditingController();
+
+    bool isSubmitting = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final rawCardNumber = cardNumberController.text.replaceAll(' ', '');
+          String cardBrand = 'GENERIC';
+          if (rawCardNumber.startsWith('4')) {
+            cardBrand = 'VISA';
+          } else if (RegExp(r'^(5[1-5]|2[2-7])').hasMatch(rawCardNumber)) {
+            cardBrand = 'MASTERCARD';
+          } else if (RegExp(r'^3[47]').hasMatch(rawCardNumber)) {
+            cardBrand = 'AMEX';
+          }
+
+          String formattedDisplayCardNumber = rawCardNumber;
+          if (formattedDisplayCardNumber.isEmpty) {
+            formattedDisplayCardNumber = '•••• •••• •••• ••••';
+          } else {
+            final buffer = StringBuffer();
+            for (int i = 0; i < formattedDisplayCardNumber.length; i++) {
+              if (i > 0 && i % 4 == 0) buffer.write(' ');
+              buffer.write(formattedDisplayCardNumber[i]);
+            }
+            formattedDisplayCardNumber = buffer.toString();
+          }
+
+          final displayName = cardHolderController.text.isEmpty
+              ? 'CARDHOLDER NAME'
+              : cardHolderController.text.toUpperCase();
+          final displayExpiry = expiryController.text.isEmpty
+              ? 'MM/YY'
+              : expiryController.text;
+
+          return DraggableScrollableSheet(
+            initialChildSize: 0.92,
+            minChildSize: 0.5,
+            maxChildSize: 0.95,
+            builder: (context, scrollController) => Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              child: Column(
+                children: [
+                  // Drag handle
+                  Container(
+                    margin: const EdgeInsets.only(top: 12, bottom: 4),
+                    width: 44,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+
+                  // Header
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+                    decoration: const BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.credit_card_rounded, color: Colors.white, size: 22),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Credit / Debit Card Payment',
+                                style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800),
+                              ),
+                              Text(
+                                'Direct 256-bit SSL encrypted card transaction',
+                                style: TextStyle(color: Colors.white70, fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: const Icon(Icons.close_rounded, color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Scrollable Body
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Virtual Credit Card Visual Widget
+                          Container(
+                            width: double.infinity,
+                            height: 190,
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF334155)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.2),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                // Top row: Chip & Network Logo
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Container(
+                                      width: 44,
+                                      height: 32,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFE2E8F0),
+                                        borderRadius: BorderRadius.circular(6),
+                                        gradient: const LinearGradient(
+                                          colors: [Color(0xFFFDE047), Color(0xFFEAB308)],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        ),
+                                      ),
+                                      child: Stack(
+                                        children: [
+                                          Positioned(left: 12, top: 0, bottom: 0, child: Container(width: 1, color: Colors.black12)),
+                                          Positioned(left: 28, top: 0, bottom: 0, child: Container(width: 1, color: Colors.black12)),
+                                          Positioned(top: 10, left: 0, right: 0, child: Container(height: 1, color: Colors.black12)),
+                                          Positioned(top: 20, left: 0, right: 0, child: Container(height: 1, color: Colors.black12)),
+                                        ],
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white12,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        cardBrand,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: 1.2,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+
+                                // Middle: Card Number
+                                Text(
+                                  formattedDisplayCardNumber,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontFamily: 'monospace',
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 2.0,
+                                  ),
+                                ),
+
+                                // Bottom: Name & Expiry
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            'CARDHOLDER',
+                                            style: TextStyle(color: Colors.white60, fontSize: 9, fontWeight: FontWeight.bold),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            displayName,
+                                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      children: [
+                                        const Text(
+                                          'EXPIRES',
+                                          style: TextStyle(color: Colors.white60, fontSize: 9, fontWeight: FontWeight.bold),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          displayExpiry,
+                                          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Section Label
+                          const Text(
+                            'Enter Card Details',
+                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+                          ),
+                          const SizedBox(height: 12),
+
+                          // Cardholder Name
+                          TextField(
+                            controller: cardHolderController,
+                            textCapitalization: TextCapitalization.words,
+                            onChanged: (_) => setDialogState(() {}),
+                            decoration: InputDecoration(
+                              labelText: 'Cardholder Name *',
+                              hintText: 'e.g., Samanthi Perera',
+                              prefixIcon: const Icon(Icons.person_outline_rounded, color: AppColors.primary),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade300)),
+                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
+                              contentPadding: const EdgeInsets.all(14),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+
+                          // Card Number
+                          TextField(
+                            controller: cardNumberController,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(16),
+                            ],
+                            onChanged: (_) => setDialogState(() {}),
+                            decoration: InputDecoration(
+                              labelText: '16-Digit Card Number *',
+                              hintText: '4532 0000 0000 0000',
+                              prefixIcon: const Icon(Icons.credit_card_rounded, color: AppColors.primary),
+                              suffixIcon: Padding(
+                                padding: const EdgeInsets.only(right: 12),
+                                child: Icon(
+                                  cardBrand == 'VISA'
+                                      ? Icons.payment_rounded
+                                      : cardBrand == 'MASTERCARD'
+                                          ? Icons.credit_card_rounded
+                                          : Icons.credit_score_rounded,
+                                  color: cardBrand != 'GENERIC' ? AppColors.accent : Colors.grey,
+                                ),
+                              ),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade300)),
+                              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
+                              contentPadding: const EdgeInsets.all(14),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+
+                          // Row: Expiry & CVV
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: expiryController,
+                                  keyboardType: TextInputType.number,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly,
+                                    LengthLimitingTextInputFormatter(4),
+                                  ],
+                                  onChanged: (val) {
+                                    if (val.length == 2 && !val.contains('/')) {
+                                      expiryController.text = '$val/';
+                                      expiryController.selection = TextSelection.fromPosition(
+                                        TextPosition(offset: expiryController.text.length),
+                                      );
+                                    }
+                                    setDialogState(() {});
+                                  },
+                                  decoration: InputDecoration(
+                                    labelText: 'Expiry (MM/YY) *',
+                                    hintText: '08/28',
+                                    prefixIcon: const Icon(Icons.calendar_today_rounded, color: AppColors.primary),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade300)),
+                                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
+                                    contentPadding: const EdgeInsets.all(14),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: TextField(
+                                  controller: cvvController,
+                                  keyboardType: TextInputType.number,
+                                  obscureText: true,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly,
+                                    LengthLimitingTextInputFormatter(4),
+                                  ],
+                                  onChanged: (_) => setDialogState(() {}),
+                                  decoration: InputDecoration(
+                                    labelText: 'CVV / CVC *',
+                                    hintText: '123',
+                                    prefixIcon: const Icon(Icons.lock_outline_rounded, color: AppColors.primary),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: Colors.grey.shade300)),
+                                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
+                                    contentPadding: const EdgeInsets.all(14),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 18),
+
+                          // Security Notice
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.success.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.success.withValues(alpha: 0.2)),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.shield_rounded, color: AppColors.success, size: 20),
+                                SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'Transactions are 256-bit SSL encrypted. Card details processed securely.',
+                                    style: TextStyle(fontSize: 11, color: AppColors.success, fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Bottom Action Button
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border(top: BorderSide(color: Colors.grey.shade200)),
+                    ),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.accent,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        onPressed: isSubmitting
+                            ? null
+                            : () async {
+                                final name = cardHolderController.text.trim();
+                                final number = cardNumberController.text.replaceAll(' ', '').trim();
+                                final exp = expiryController.text.trim();
+                                final cvv = cvvController.text.trim();
+
+                                if (name.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Please enter the cardholder name.'), backgroundColor: AppColors.error),
+                                  );
+                                  return;
+                                }
+                                if (number.length < 15) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Please enter a valid 16-digit card number.'), backgroundColor: AppColors.error),
+                                  );
+                                  return;
+                                }
+                                if (!RegExp(r'^\d{2}/\d{2}$').hasMatch(exp)) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Please enter expiry in MM/YY format.'), backgroundColor: AppColors.error),
+                                  );
+                                  return;
+                                }
+                                if (cvv.length < 3) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Please enter a valid 3 or 4-digit CVV.'), backgroundColor: AppColors.error),
+                                  );
+                                  return;
+                                }
+
+                                setDialogState(() => isSubmitting = true);
+
+                                final updatedInvoice = await provider.payWithCard(
+                                  invoiceId: invoice.id,
+                                  cardHolderName: name,
+                                  cardNumber: number,
+                                  expiryDate: exp,
+                                  cvv: cvv,
+                                );
+
+                                if (context.mounted) {
+                                  setDialogState(() => isSubmitting = false);
+                                  Navigator.pop(ctx); // Close card modal
+
+                                  if (updatedInvoice != null) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('🎉 Payment of ${_currencyFormat.format(invoice.amount)} successful! Digital receipt generated.'),
+                                        backgroundColor: AppColors.success,
+                                        duration: const Duration(seconds: 4),
+                                      ),
+                                    );
+                                    // Open Digital Receipt automatically!
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => DigitalReceiptScreen(invoice: updatedInvoice),
+                                      ),
+                                    );
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(provider.errorMessage ?? 'Card payment failed. Please try again.'),
+                                        backgroundColor: AppColors.error,
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                        child: isSubmitting
+                            ? const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                                  ),
+                                  SizedBox(width: 12),
+                                  Text(
+                                    'Authorizing & Processing Card...',
+                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14),
+                                  ),
+                                ],
+                              )
+                            : Text(
+                                'Pay ${_currencyFormat.format(invoice.amount)} Securely Now',
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15),
+                              ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }

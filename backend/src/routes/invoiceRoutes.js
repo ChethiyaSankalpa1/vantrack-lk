@@ -14,6 +14,7 @@ const {
   getCashInvoicesForDriver,
   confirmCashPayment,
   seedTestUnpaidInvoices,
+  processCardPayment,
 } = require('../controllers/invoiceController');
 
 const bankDepositController = require('../controllers/bankDepositController');
@@ -37,6 +38,7 @@ router.get('/:id', protect, getInvoiceById);
 router.post('/:id/receipt', protect, authorize('parent'), uploadReceipt);
 router.post('/:id/bank-deposit', protect, authorize('parent'), bankDepositController.submitBankDeposit);
 router.post('/:id/payhere-checkout', protect, authorize('parent'), initiatePayHere);
+router.post('/:id/pay-card', protect, authorize('parent'), processCardPayment);
 router.put('/:id/verify', protect, authorize('admin'), verifyPayment);
 
 module.exports = router;

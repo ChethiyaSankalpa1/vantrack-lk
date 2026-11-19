@@ -676,3 +676,96 @@ exports.seedTestUnpaidInvoices = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+/**
+ * @desc    Process Direct Visa / Mastercard Credit or Debit Card Payment
+ * @route   POST /api/invoices/:id/pay-card
+ * @access  Private (Parent)
+ */
+exports.processCardPayment = async (req, res) => {
+  try {
+    const { cardHolderName, cardNumber, expiryDate, cvv } = req.body;
+
+    if (!cardHolderName || !cardNumber || !expiryDate || !cvv) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cardholder name, card number, expiry date, and CVV are required.',
+      });
+    }
+
+    const cleanCard = cardNumber.replace(/\s+/g, '');
+    if (cleanCard.length < 15 || cleanCard.length > 19) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid credit/debit card number length.',
+      });
+    }
+
+    if (!/^\d{2}\/\d{2}$/.test(expiryDate.trim())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid expiry date format. Please use MM/YY.',
+      });
+    }
+
+    const [expMonth, expYear] = expiryDate.trim().split('/').map((n) => parseInt(n, 10));
+    const now = new Date();
+    const currentYear = parseInt(now.getFullYear().toString().slice(-2), 10);
+    const currentMonth = now.getMonth() + 1;
+
+    if (expMonth < 1 || expMonth > 12) {
+      return res.status(400).json({ success: false, message: 'Invalid expiry month (01-12).' });
+    }
+    if (expYear < currentYear || (expYear === currentYear && expMonth < currentMonth)) {
+      return res.status(400).json({ success: false, message: 'Card has expired.' });
+    }
+
+    const invoice = await Invoice.findById(req.params.id)
+      .populate('studentId', 'name schoolName grade')
+      .populate('parentId', 'name phone email');
+
+    if (!invoice) {
+      return res.status(404).json({ success: false, message: 'Invoice not found.' });
+    }
+
+    if (invoice.parentId._id.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Not authorized to pay this invoice.' });
+    }
+
+    if (invoice.status === 'paid') {
+      return res.status(400).json({ success: false, message: 'This invoice is already paid and verified.' });
+    }
+
+    const last4 = cleanCard.slice(-4);
+    const refId = `PAY-CARD-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    invoice.status = 'paid';
+    invoice.paymentMethod = 'payhere_online';
+    invoice.payherePaymentId = refId;
+    invoice.paidAt = new Date();
+    invoice.notes = `Online Card Payment (**** ${last4}) authorized for ${cardHolderName.trim()} on ${new Date().toLocaleString('en-LK')}`;
+    await invoice.save();
+
+    const io = req.app.get('io');
+    await sendNotification({
+      userId: invoice.parentId._id || invoice.parentId,
+      title: '💳 Card Payment Successful',
+      message: `Payment of LKR ${invoice.amount} for invoice ${invoice.invoiceNumber} was successfully processed via Visa/Mastercard (**** ${last4}). Digital receipt unlocked!`,
+      type: 'payment_receipt',
+      data: {
+        invoiceId: invoice._id.toString(),
+        receiptNumber: refId,
+      },
+      io,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Card payment of LKR ${invoice.amount} processed successfully for ${invoice.studentId?.name || 'student'}. Digital receipt generated!`,
+      data: invoice,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+

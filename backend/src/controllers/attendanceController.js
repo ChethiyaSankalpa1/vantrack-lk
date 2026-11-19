@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Attendance = require('../models/Attendance');
 const Student = require('../models/Student');
 const Trip = require('../models/Trip');
@@ -28,13 +29,27 @@ exports.recordAttendance = async (req, res) => {
       });
     }
 
-    // Verify trip is active
+    // Verify trip exists
     const trip = await Trip.findById(tripId);
-    if (!trip || trip.status !== 'started') {
+    if (!trip) {
+      return res.status(404).json({
+        success: false,
+        message: 'Trip not found.',
+      });
+    }
+
+    if (['completed', 'cancelled'].includes(trip.status)) {
       return res.status(400).json({
         success: false,
-        message: 'No active trip in progress. Cannot record attendance.',
+        message: `Trip is ${trip.status}. Cannot record attendance for finished trips.`,
       });
+    }
+
+    // Auto-transition trip status to started if it was scheduled/assigned/ready
+    if (['scheduled', 'assigned', 'ready'].includes(trip.status)) {
+      trip.status = 'started';
+      trip.startedAt = trip.startedAt || new Date();
+      await trip.save();
     }
 
     // Verify student exists
@@ -124,10 +139,18 @@ exports.recordAttendance = async (req, res) => {
   } catch (error) {
     // Handle duplicate key error gracefully (concurrent recording attempt)
     if (error.code === 11000) {
-      return res.status(409).json({
-        success: false,
-        message: 'Attendance already recorded for this student and event on this trip',
-      });
+      try {
+        const existing = await Attendance.findOne({
+          studentId: req.body.studentId,
+          tripId: req.body.tripId,
+          status: req.body.status,
+        });
+        return res.status(200).json({
+          success: true,
+          message: `Attendance already recorded for this student on this trip.`,
+          data: existing,
+        });
+      } catch (_) {}
     }
     res.status(500).json({ success: false, message: error.message });
   }
@@ -149,22 +172,42 @@ exports.qrScanAttendance = async (req, res) => {
       });
     }
 
-    // Find student by QR code or student ID fallback
-    let student = await Student.findOne({ qrCodeString });
+    const cleanCode = qrCodeString.trim();
+
+    // Find student by exact QR code, candidate ID, admission number, or substring
+    let student = await Student.findOne({ qrCodeString: cleanCode });
     if (!student) {
-      let candidateId = qrCodeString;
-      if (qrCodeString.startsWith('VANTRACK_STU_')) {
-        candidateId = qrCodeString.replace('VANTRACK_STU_', '');
+      let candidateId = cleanCode;
+      if (cleanCode.startsWith('VANTRACK_STU_')) {
+        candidateId = cleanCode.replace('VANTRACK_STU_', '');
+      } else if (cleanCode.startsWith('VANTRK-STU-')) {
+        candidateId = cleanCode.replace('VANTRK-STU-', '');
+      } else if (cleanCode.startsWith('VT-STU-')) {
+        candidateId = cleanCode.replace('VT-STU-', '');
       }
+
       if (mongoose.Types.ObjectId.isValid(candidateId)) {
         student = await Student.findById(candidateId);
       }
     }
 
     if (!student) {
+      student = await Student.findOne({ admissionNumber: cleanCode });
+    }
+
+    if (!student) {
+      student = await Student.findOne({
+        $or: [
+          { qrCodeString: { $regex: cleanCode, $options: 'i' } },
+          { admissionNumber: { $regex: cleanCode, $options: 'i' } },
+        ],
+      });
+    }
+
+    if (!student) {
       return res.status(404).json({
         success: false,
-        message: 'No student found for this QR code. Please check the Van Pass.',
+        message: `No student found for QR code "${cleanCode}". Please verify the student pass.`,
       });
     }
 

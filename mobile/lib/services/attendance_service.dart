@@ -22,10 +22,10 @@ class AttendanceService {
         'tripId': tripId,
         'status': status,
         'method': method,
-        'latitude': ?latitude,
-        'longitude': ?longitude,
-        'address': ?address,
-        'notes': ?notes,
+        ?latitude: latitude,
+        ?longitude: longitude,
+        ?address: address,
+        ?notes: notes,
       });
       return response.data['data'] as Map<String, dynamic>;
     } on DioException catch (e) {
@@ -46,8 +46,8 @@ class AttendanceService {
         'qrCodeString': qrCodeString,
         'tripId': tripId,
         'status': status,
-        'latitude': ?latitude,
-        'longitude': ?longitude,
+        ?latitude: latitude,
+        ?longitude: longitude,
       });
       return response.data['data'] as Map<String, dynamic>;
     } on DioException catch (e) {

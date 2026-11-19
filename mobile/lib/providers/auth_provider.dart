@@ -125,6 +125,42 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Update user profile details & avatar photo
+  Future<bool> updateProfile({
+    String? name,
+    String? phone,
+    String? address,
+    String? emergencyContact,
+    String? nicNumber,
+    String? licenseNumber,
+    String? avatarUrl,
+  }) async {
+    _errorMessage = null;
+
+    try {
+      final updated = await _authService.updateProfile(
+        name: name,
+        phone: phone,
+        address: address,
+        emergencyContact: emergencyContact,
+        nicNumber: nicNumber,
+        licenseNumber: licenseNumber,
+        avatarUrl: avatarUrl,
+      );
+      _user = updated;
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// Logout
   Future<void> logout() async {
     await _authService.logout();

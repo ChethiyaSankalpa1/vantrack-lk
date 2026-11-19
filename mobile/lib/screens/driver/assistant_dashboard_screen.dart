@@ -6,6 +6,7 @@ import '../../config/routes.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/driver_provider.dart';
 import '../../services/driver_service.dart';
+import '../profile/driver_profile_screen.dart';
 import 'widgets/driver_incident_button.dart';
 import 'widgets/driver_student_list.dart';
 
@@ -94,6 +95,16 @@ class _AssistantDashboardScreenState extends State<AssistantDashboardScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: 'Assistant Profile & Settings',
+            icon: const Icon(Icons.person_rounded, color: Colors.white),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DriverProfileScreen()),
+              );
+            },
+          ),
           IconButton(
             tooltip: 'In-Person Cash Fee Collection',
             icon: const Icon(Icons.payments_rounded, color: AppColors.vanAmber),

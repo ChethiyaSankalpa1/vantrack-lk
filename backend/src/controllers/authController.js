@@ -151,14 +151,17 @@ exports.getMe = async (req, res) => {
 // @access  Private
 exports.updateDetails = async (req, res) => {
   try {
-    const fieldsToUpdate = {
-      name: req.body.name,
-      address: req.body.address,
-      emergencyContact: req.body.emergencyContact,
-      avatarUrl: req.body.avatarUrl,
-    };
+    const fieldsToUpdate = {};
+    if (req.body.name !== undefined) fieldsToUpdate.name = req.body.name.trim();
+    if (req.body.phone !== undefined) fieldsToUpdate.phone = req.body.phone.trim();
+    if (req.body.address !== undefined) fieldsToUpdate.address = req.body.address.trim();
+    if (req.body.emergencyContact !== undefined) fieldsToUpdate.emergencyContact = req.body.emergencyContact.trim();
+    if (req.body.nicNumber !== undefined) fieldsToUpdate.nicNumber = req.body.nicNumber.trim();
+    if (req.body.licenseNumber !== undefined) fieldsToUpdate.licenseNumber = req.body.licenseNumber.trim();
+    if (req.body.avatarUrl !== undefined) fieldsToUpdate.avatarUrl = req.body.avatarUrl.trim();
+    if (req.body.photoUrl !== undefined) fieldsToUpdate.avatarUrl = req.body.photoUrl.trim();
 
-    const user = await User.findByIdAndUpdate(req.user.id, fieldsToUpdate, {
+    const user = await User.findByIdAndUpdate(req.user.id, { $set: fieldsToUpdate }, {
       new: true,
       runValidators: true,
     });

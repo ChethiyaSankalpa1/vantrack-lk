@@ -127,4 +127,38 @@ class InvoiceProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  Future<InvoiceModel?> payWithCard({
+    required String invoiceId,
+    required String cardHolderName,
+    required String cardNumber,
+    required String expiryDate,
+    required String cvv,
+  }) async {
+    _isPaymentProcessing = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final updated = await _service.payWithCard(
+        invoiceId: invoiceId,
+        cardHolderName: cardHolderName,
+        cardNumber: cardNumber,
+        expiryDate: expiryDate,
+        cvv: cvv,
+      );
+      final index = _invoices.indexWhere((i) => i.id == invoiceId);
+      if (index != -1) {
+        _invoices[index] = updated;
+      }
+      await loadInvoices();
+      return updated;
+    } catch (e) {
+      _errorMessage = e.toString();
+      return null;
+    } finally {
+      _isPaymentProcessing = false;
+      notifyListeners();
+    }
+  }
 }

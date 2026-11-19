@@ -98,4 +98,25 @@ class InvoiceService {
       throw ApiException.fromDioError(e);
     }
   }
+
+  /// Pay invoice via Credit/Debit card directly
+  Future<InvoiceModel> payWithCard({
+    required String invoiceId,
+    required String cardHolderName,
+    required String cardNumber,
+    required String expiryDate,
+    required String cvv,
+  }) async {
+    try {
+      final response = await _api.post('/invoices/$invoiceId/pay-card', data: {
+        'cardHolderName': cardHolderName,
+        'cardNumber': cardNumber,
+        'expiryDate': expiryDate,
+        'cvv': cvv,
+      });
+      return InvoiceModel.fromJson(response.data['data'] as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
 }

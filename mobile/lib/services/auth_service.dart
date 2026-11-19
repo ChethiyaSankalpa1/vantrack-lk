@@ -120,6 +120,37 @@ class AuthService {
     }
   }
 
+  /// Update current user profile details & avatar photo
+  Future<AuthUser> updateProfile({
+    String? name,
+    String? phone,
+    String? address,
+    String? emergencyContact,
+    String? nicNumber,
+    String? licenseNumber,
+    String? avatarUrl,
+  }) async {
+    try {
+      final payload = {
+        if (name != null) 'name': name.trim(),
+        if (phone != null) 'phone': phone.trim(),
+        if (address != null) 'address': address.trim(),
+        if (emergencyContact != null) 'emergencyContact': emergencyContact.trim(),
+        if (nicNumber != null) 'nicNumber': nicNumber.trim(),
+        if (licenseNumber != null) 'licenseNumber': licenseNumber.trim(),
+        if (avatarUrl != null) 'avatarUrl': avatarUrl.trim(),
+      };
+
+      final response = await _api.put('/auth/updatedetails', data: payload);
+      final data = response.data['data'] ?? response.data;
+      final updatedUser = AuthUser.fromJson(data['user'] ?? data);
+      await LocalStorage.saveUser(updatedUser);
+      return updatedUser;
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
   /// Logout and clear storage
   Future<void> logout() async {
     await LocalStorage.clearSession();
