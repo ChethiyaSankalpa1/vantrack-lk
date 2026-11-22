@@ -48,17 +48,16 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
         'stopIndex': nextIndex,
       });
 
+      if (!mounted) return;
       setState(() => _currentStopIndex = nextIndex);
       widget.onStopAdvanced?.call(nextIndex);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('🚌 Advanced to: ${_stops[nextIndex]['name'] ?? 'Stop'}'),
-            backgroundColor: AppColors.accent,
-          ),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('🚌 Advanced to: ${_stops[nextIndex]['name'] ?? 'Stop'}'),
+          backgroundColor: AppColors.accent,
+        ),
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

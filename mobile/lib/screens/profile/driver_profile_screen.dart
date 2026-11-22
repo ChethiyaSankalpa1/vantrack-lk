@@ -80,7 +80,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['png', 'jpg', 'jpeg', 'webp', 'pdf'],
+        allowedExtensions: ['png', 'jpg', 'jpeg', 'webp'],
       );
 
       if (result == null || result.files.single.path == null) return;
@@ -452,7 +452,14 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
           );
         },
       ),
-    );
+    ).whenComplete(() {
+      nameController.dispose();
+      phoneController.dispose();
+      emergencyController.dispose();
+      addressController.dispose();
+      nicController.dispose();
+      licenseController.dispose();
+    });
   }
 
   @override

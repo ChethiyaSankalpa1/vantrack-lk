@@ -61,15 +61,14 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
 
   Future<void> _requestCameraPermission() async {
     final status = await Permission.camera.request();
+    if (!mounted) return;
     setState(() {
       _hasCameraPermission = status.isGranted;
       _permissionChecked = true;
     });
 
-    if (status.isPermanentlyDenied) {
-      if (mounted) {
-        _showPermissionSettingsDialog();
-      }
+    if (status.isPermanentlyDenied && mounted) {
+      _showPermissionSettingsDialog();
     }
   }
 
@@ -489,6 +488,8 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
       }
     } catch (e) {
       if (mounted) {
+        // Reset so the same pass can be scanned again after a failed attempt
+        setState(() => _lastScannedCode = null);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('⚠️ Scan failed: ${e.toString()}'),
@@ -627,6 +628,6 @@ class _QrScannerScreenState extends State<QrScannerScreen> with WidgetsBindingOb
           ),
         ],
       ),
-    );
+    ).whenComplete(controller.dispose);
   }
 }

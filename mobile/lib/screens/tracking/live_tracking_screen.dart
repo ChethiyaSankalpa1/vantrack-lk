@@ -32,6 +32,12 @@ class _LiveTrackingScreenState extends State<LiveTrackingScreen> {
   }
 
   @override
+  void dispose() {
+    _mapController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final tracking = context.watch<TrackingProvider>();
 

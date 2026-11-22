@@ -172,7 +172,9 @@ class _DriverDashboardScreenState extends State<DriverDashboardScreen> {
               } else if (value == 'settings') {
                 Navigator.pushNamed(context, AppRoutes.settings);
               } else if (value == 'logout') {
-                driver.dispose();
+                // Reset (never dispose) the app-scoped provider so stale trip
+                // state is not carried into the next session.
+                driver.reset();
                 await auth.logout();
                 if (context.mounted) {
                   Navigator.pushReplacementNamed(context, AppRoutes.login);

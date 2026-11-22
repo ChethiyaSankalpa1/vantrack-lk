@@ -78,6 +78,30 @@ class NotificationProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// Delete a notification. Removes it from the local list immediately so the
+  /// UI stays consistent (required by `Dismissible`), then persists the delete
+  /// to the backend.
+  Future<void> deleteNotification(String id) async {
+    final index = _notifications.indexWhere((n) => n.id == id);
+    if (index == -1) return;
+
+    final removed = _notifications[index];
+    final wasUnread = !removed.isRead;
+    _notifications.removeAt(index);
+    if (wasUnread && _unreadCount > 0) _unreadCount--;
+    notifyListeners();
+
+    try {
+      await _service.deleteNotification(id);
+    } catch (_) {
+      // Revert the optimistic removal if the server rejected the request so
+      // the user does not lose a notification that still exists remotely.
+      _notifications.insert(index, removed);
+      if (wasUnread) _unreadCount++;
+      notifyListeners();
+    }
+  }
+
   /// Handle incoming real-time socket notification
   void handleIncomingNotification(Map<String, dynamic> json) {
     final notif = NotificationModel.fromJson(json);

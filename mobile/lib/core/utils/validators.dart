@@ -10,7 +10,9 @@ class Validators {
     if (value == null || value.trim().isEmpty) {
       return 'Email address is required';
     }
-    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    // Allow modern TLDs of any length (>= 2) so valid addresses such as
+    // user@example.technology are accepted.
+    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,}$');
     if (!emailRegex.hasMatch(value.trim())) {
       return 'Please enter a valid email address';
     }

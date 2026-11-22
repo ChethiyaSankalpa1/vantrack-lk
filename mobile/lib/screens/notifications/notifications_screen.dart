@@ -167,7 +167,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         child: const Icon(Icons.delete_outline_rounded, color: Colors.white),
       ),
       onDismissed: (_) {
-        provider.markAsRead(notif.id);
+        // Remove from the provider list so the dismissed widget is no longer
+        // part of the tree on the next build (otherwise Flutter throws
+        // "A dismissed Dismissible widget is still part of the tree").
+        provider.deleteNotification(notif.id);
       },
       child: GestureDetector(
         onTap: () {

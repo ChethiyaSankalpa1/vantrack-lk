@@ -345,9 +345,9 @@ class DriverTripCard extends StatelessWidget {
 
   IconData _getTripTypeIcon() {
     switch (trip.tripType) {
-      case 'morning':
+      case 'morning_pickup':
         return Icons.wb_sunny_rounded;
-      case 'afternoon':
+      case 'afternoon_drop':
         return Icons.wb_twilight_rounded;
       default:
         return Icons.directions_bus_rounded;
@@ -356,9 +356,9 @@ class DriverTripCard extends StatelessWidget {
 
   Color _getTripTypeColor() {
     switch (trip.tripType) {
-      case 'morning':
+      case 'morning_pickup':
         return AppColors.vanAmber;
-      case 'afternoon':
+      case 'afternoon_drop':
         return AppColors.info;
       default:
         return AppColors.primary;
@@ -367,12 +367,12 @@ class DriverTripCard extends StatelessWidget {
 
   String _getTripTypeLabel() {
     switch (trip.tripType) {
-      case 'morning':
+      case 'morning_pickup':
         return '☀️ Morning Trip — Pickup';
-      case 'afternoon':
+      case 'afternoon_drop':
         return '🌆 Afternoon Trip — Drop-off';
       default:
-        return '🚌 School Trip';
+        return '🚌 ${trip.displayTripType}';
     }
   }
 

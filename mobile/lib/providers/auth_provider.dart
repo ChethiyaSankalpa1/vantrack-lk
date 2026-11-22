@@ -4,6 +4,7 @@ import '../core/storage/local_storage.dart';
 import '../models/auth_user.dart';
 import '../models/user_role.dart';
 import '../services/auth_service.dart';
+import '../services/fcm_service.dart';
 
 enum AuthStatus { initial, loading, authenticated, unauthenticated, error }
 
@@ -42,10 +43,16 @@ class AuthProvider extends ChangeNotifier {
       final freshUser = await _authService.getCurrentUser();
       _user = freshUser;
       notifyListeners();
+    } on ApiException catch (e) {
+      // If the token is rejected (401/403), the session is no longer valid:
+      // clear it so the user is routed to the login screen.
+      if (e.statusCode == 401 || e.statusCode == 403) {
+        await logout();
+      }
+      // Otherwise (e.g. connection error) keep the cached user for offline
+      // resilience - the app still works with locally stored data.
     } catch (_) {
-      // If token expired, clear session
-      // For offline resilience, if it's connection error keep cached user
-      // but if 401 unauthorized, logout
+      // Unknown error: keep cached user rather than logging the user out.
     }
   }
 
@@ -66,6 +73,9 @@ class AuthProvider extends ChangeNotifier {
       _user = result.user;
       _status = AuthStatus.authenticated;
       notifyListeners();
+      // Now that we have a valid session, associate the device push token
+      // with this account (the startup attempt ran before auth).
+      await FcmService.syncTokenWithServer();
       return true;
     } on ApiException catch (e) {
       _status = AuthStatus.unauthenticated;
@@ -111,6 +121,8 @@ class AuthProvider extends ChangeNotifier {
       _user = result.user;
       _status = AuthStatus.authenticated;
       notifyListeners();
+      // Associate the device push token with the freshly created account.
+      await FcmService.syncTokenWithServer();
       return true;
     } on ApiException catch (e) {
       _status = AuthStatus.unauthenticated;

@@ -456,12 +456,13 @@ class _AddChildScreenState extends State<AddChildScreen> {
                     focusNode,
                     onFieldSubmitted,
                   ) {
-                    controller.addListener(() {
-                      _schoolController.text = controller.text;
-                    });
                     return TextFormField(
                       controller: controller,
                       focusNode: focusNode,
+                      // Use onChanged instead of adding a listener to the
+                      // internally-managed controller, which would accumulate a
+                      // new listener on every rebuild and leak memory.
+                      onChanged: (value) => _schoolController.text = value,
                       decoration: const InputDecoration(
                         hintText: 'Select or type school name',
                         prefixIcon: Icon(

@@ -17,6 +17,7 @@ class ParentDashboardProvider extends ChangeNotifier {
   int _selectedStudentIndex = 0;
   bool _isLoading = false;
   String? _errorMessage;
+  bool _isDisposed = false;
 
   ParentDashboardData? get dashboardData => _dashboardData;
   int get selectedStudentIndex => _selectedStudentIndex;
@@ -51,6 +52,7 @@ class ParentDashboardProvider extends ChangeNotifier {
   }
 
   void handleRealtimeAttendance(Map<String, dynamic> data) {
+    if (_isDisposed) return;
     final sId = data['studentId']?.toString();
     final status = data['status']?.toString();
     if (sId == null || status == null || _dashboardData == null) return;
@@ -97,7 +99,7 @@ class ParentDashboardProvider extends ChangeNotifier {
       _errorMessage = e.toString();
     } finally {
       _isLoading = false;
-      notifyListeners();
+      if (!_isDisposed) notifyListeners();
     }
   }
 
@@ -132,6 +134,7 @@ class ParentDashboardProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _isDisposed = true;
     _attendanceSub?.cancel();
     _trackingService?.dispose();
     super.dispose();

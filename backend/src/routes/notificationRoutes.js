@@ -49,6 +49,22 @@ router.put('/:id/read', protect, async (req, res) => {
   }
 });
 
+// Delete a single notification (scoped to the requesting user)
+router.delete('/:id', protect, async (req, res) => {
+  try {
+    const deleted = await Notification.findOneAndDelete({
+      _id: req.params.id,
+      userId: req.user._id,
+    });
+    if (!deleted) {
+      return res.status(404).json({ success: false, message: 'Notification not found' });
+    }
+    res.status(200).json({ success: true, message: 'Notification deleted' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Register FCM Device Token
 router.post('/fcm-token', protect, async (req, res) => {
   try {

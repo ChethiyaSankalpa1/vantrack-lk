@@ -12,6 +12,7 @@ class TrackingProvider extends ChangeNotifier {
   TrackingStatus _status = TrackingStatus.idle;
   String? _errorMessage;
   bool _isSocketConnected = false;
+  bool _isDisposed = false;
 
   TripModel? _activeTrip;
   Map<String, dynamic>? _vehicle;
@@ -65,6 +66,9 @@ class TrackingProvider extends ChangeNotifier {
   Future<void> initTracking({String? parentId}) async {
     _status = TrackingStatus.loading;
     _errorMessage = null;
+    // Reset previous trip state so data from a prior trip/session does not leak
+    // into the new tracking session.
+    _incidents.clear();
     notifyListeners();
 
     try {
@@ -118,22 +122,26 @@ class TrackingProvider extends ChangeNotifier {
     _service.connectSocket(tripId: tripId, parentId: parentId);
 
     _connSub = _service.connectionStateStream.listen((connected) {
+      if (_isDisposed) return;
       _isSocketConnected = connected;
       notifyListeners();
     });
 
     _telemetrySub = _service.telemetryStream.listen((telemetry) {
+      if (_isDisposed) return;
       _latestTelemetry = telemetry;
       _lastTelemetryReceivedAt = DateTime.now();
       notifyListeners();
     });
 
     _incidentSub = _service.incidentStream.listen((incident) {
+      if (_isDisposed) return;
       _incidents.insert(0, incident);
       notifyListeners();
     });
 
     _attendanceSub = _service.attendanceStream.listen((att) {
+      if (_isDisposed) return;
       _todayAttendance.insert(0, att);
       notifyListeners();
     });
@@ -142,7 +150,7 @@ class TrackingProvider extends ChangeNotifier {
   void _startStaleCheck() {
     _staleCheckTimer?.cancel();
     _staleCheckTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (_status == TrackingStatus.active) {
+      if (!_isDisposed && _status == TrackingStatus.active) {
         notifyListeners();
       }
     });
@@ -150,6 +158,7 @@ class TrackingProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _isDisposed = true;
     _staleCheckTimer?.cancel();
     _telemetrySub?.cancel();
     _incidentSub?.cancel();

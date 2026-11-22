@@ -22,6 +22,7 @@ class DriverProvider extends ChangeNotifier {
   Position? _lastPosition;
   Timer? _gpsTimer;
   int _gpsUpdateCount = 0;
+  bool _isDisposed = false;
 
   // Attendance tracking for active trip
   final Set<String> _boardedStudentIds = {};
@@ -148,6 +149,13 @@ class DriverProvider extends ChangeNotifier {
       _tripState = TripState.active;
       notifyListeners();
       return false;
+    } catch (e) {
+      // A failure in the dashboard refresh (e.g. network error) should not be
+      // reported as a failed trip end; keep the trip active and surface it.
+      _errorMessage = e.toString();
+      _tripState = TripState.active;
+      notifyListeners();
+      return false;
     }
   }
 
@@ -172,6 +180,7 @@ class DriverProvider extends ChangeNotifier {
   }
 
   Future<void> _pushLocation() async {
+    if (_isDisposed) return;
     final trip = activeTrip;
     final vehicleId = _dashboardData?.vehicle?['_id']?.toString();
     if (trip == null || vehicleId == null) return;
@@ -190,6 +199,7 @@ class DriverProvider extends ChangeNotifier {
         ),
       );
 
+      if (_isDisposed) return;
       _lastPosition = position;
       _gpsUpdateCount++;
 
@@ -202,6 +212,7 @@ class DriverProvider extends ChangeNotifier {
         heading: position.heading,
         accuracy: position.accuracy,
       );
+      if (_isDisposed) return;
       notifyListeners();
     } catch (_) {
       // Silently handle location errors — UI will show stale warning
@@ -264,12 +275,21 @@ class DriverProvider extends ChangeNotifier {
     final trip = activeTrip;
     if (trip == null) return false;
 
-    return await _service.recordAttendance(
+    final success = await _service.recordAttendance(
       studentId: studentId,
       tripId: trip.id,
       status: 'absent',
       notes: notes,
     );
+
+    if (success) {
+      // An absent student is neither boarded nor dropped off, so clear any
+      // stale local state and refresh the UI.
+      _boardedStudentIds.remove(studentId);
+      _droppedStudentIds.remove(studentId);
+      notifyListeners();
+    }
+    return success;
   }
 
   Future<bool> scanQrCode(String qrCodeString, String status) async {
@@ -282,9 +302,9 @@ class DriverProvider extends ChangeNotifier {
       status: status,
     );
 
-    if (success && status == 'boarded') {
-      // Note: We'd need the studentId here but QR returns it from backend
-      // For simplicity, reload dashboard to get fresh attendance state
+    if (success) {
+      // The QR endpoint resolves the student on the backend, so reload the
+      // dashboard to pick up fresh boarding/drop-off attendance state.
       await loadDashboard();
     }
     return success;
@@ -310,9 +330,30 @@ class DriverProvider extends ChangeNotifier {
     );
   }
 
+  /// Clear all in-memory trip/GPS state, e.g. on logout. This provider is
+  /// app-scoped, so it must NOT be disposed by screens; resetting keeps it
+  /// usable for the next signed-in session.
+  void reset() {
+    _isGpsActive = false;
+    _gpsTimer?.cancel();
+    _gpsTimer = null;
+    _dashboardData = null;
+    _tripState = TripState.idle;
+    _isLoading = false;
+    _errorMessage = null;
+    _lastPosition = null;
+    _gpsUpdateCount = 0;
+    _boardedStudentIds.clear();
+    _droppedStudentIds.clear();
+    if (!_isDisposed) notifyListeners();
+  }
+
   @override
   void dispose() {
-    _stopGpsTracking();
+    _isDisposed = true;
+    _isGpsActive = false;
+    _gpsTimer?.cancel();
+    _gpsTimer = null;
     super.dispose();
   }
 }

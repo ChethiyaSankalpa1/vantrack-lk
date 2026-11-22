@@ -48,6 +48,16 @@ class NotificationService {
     }
   }
 
+  /// Delete a single notification
+  Future<bool> deleteNotification(String id) async {
+    try {
+      await _api.delete('/notifications/$id');
+      return true;
+    } on DioException catch (e) {
+      throw ApiException.fromDioError(e);
+    }
+  }
+
   /// Register FCM Device Token for push notifications
   Future<bool> registerFcmToken(String token, {String device = 'android'}) async {
     try {

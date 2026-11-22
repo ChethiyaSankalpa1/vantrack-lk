@@ -59,7 +59,10 @@ class _CustomTextFieldState extends State<CustomTextField> {
         const SizedBox(height: 6),
         TextFormField(
           controller: widget.controller,
-          initialValue: widget.initialValue,
+          // Flutter asserts that a TextFormField cannot receive both a
+          // controller and an initialValue; only fall back to initialValue when
+          // no controller was supplied.
+          initialValue: widget.controller == null ? widget.initialValue : null,
           obscureText: widget.isPassword ? _obscureText : false,
           keyboardType: widget.keyboardType,
           validator: widget.validator,
