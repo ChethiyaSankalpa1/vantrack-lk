@@ -6,6 +6,15 @@ node_modules/
 .env.*
 !**/.env.example
 
+# Android release signing (never commit keystores or credentials)
+**/key.properties
+*.jks
+*.keystore
+
+# Build artifacts
+*.apk
+*.aab
+
 # Flutter & Dart
 .dart_tool/
 **/.dart_tool/
