@@ -42,7 +42,7 @@ const invoiceSchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ['bank_transfer', 'payhere_online', 'cash_to_driver', 'none'],
+      enum: ['bank_transfer', 'payhere_online', 'card_online', 'cash_to_driver', 'none'],
       default: 'none',
     },
     receiptUrl: {
