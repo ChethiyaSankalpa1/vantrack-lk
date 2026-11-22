@@ -12,6 +12,7 @@ import '../../core/storage/local_storage.dart';
 import '../../models/invoice_model.dart';
 import '../../providers/invoice_provider.dart';
 import '../../services/upload_service.dart';
+import 'card_payment_screen.dart';
 import 'digital_receipt_screen.dart';
 
 class InvoicesScreen extends StatefulWidget {
@@ -160,6 +161,26 @@ class _InvoicesScreenState extends State<InvoicesScreen> with WidgetsBindingObse
               _buildMiniStat('Total Paid This Year', _currencyFormat.format(provider.totalPaid), AppColors.accent),
             ],
           ),
+          if (provider.totalOutstanding > 0) ...[
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.accent,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                icon: const Icon(Icons.credit_card_rounded, size: 18),
+                label: Text(
+                  'Pay Full Outstanding by Card',
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                ),
+                onPressed: () => _openCardPayment(),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -432,6 +453,21 @@ class _InvoicesScreenState extends State<InvoicesScreen> with WidgetsBindingObse
             ),
             const SizedBox(height: 20),
 
+            // Pay the entire outstanding balance in one card transaction
+            _buildPaymentOptionTile(
+              icon: Icons.credit_card_rounded,
+              color: AppColors.accent,
+              title: 'Pay Full Outstanding by Card',
+              subtitle: 'Settle all unpaid invoices in one secure card payment of '
+                  '${_currencyFormat.format(provider.totalOutstanding)}',
+              badge: 'FULL BALANCE',
+              onTap: () {
+                Navigator.pop(ctx);
+                _openCardPayment();
+              },
+            ),
+            const SizedBox(height: 12),
+
             // Option 1: Secure Credit / Debit Card Payment via PayHere gateway
             _buildPaymentOptionTile(
               icon: Icons.credit_card_rounded,
@@ -547,6 +583,13 @@ class _InvoicesScreenState extends State<InvoicesScreen> with WidgetsBindingObse
           ],
         ),
       ),
+    );
+  }
+
+  void _openCardPayment() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const CardPaymentScreen()),
     );
   }
 
